@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.example.wms.mapper.WmsUserMapper">
+    <resultMap id="WmsUserResultMap" type="com.example.wms.entity.WmsUser">
+        <id property="id" column="id"/>
+
+        <result property="username"
+                column="username"/>
+
+        <result property="passwordHash"
+                column="password_hash"/>
+
+        <result property="realName"
+                column="real_name"/>
+
+        <result property="mobile"
+                column="mobile"/>
+
+        <result property="email"
+                column="email"/>
+
+        <result property="defaultWarehouseId"
+                column="default_warehouse_id"/>
+
+        <result property="status"
+                column="status"/>
+
+        <result property="lastLoginTime"
+                column="last_login_time"/>
+
+        <result property="createdTime"
+                column="created_time"/>
+
+        <result property="updatedTime"
+                column="updated_time"/>
+    </resultMap>
+
+    <!-- 公共查询字段 -->
+    <sql id="BaseColumnList">
+        id,
+        username,
+        password_hash,
+        real_name,
+        mobile,
+        email,
+        default_warehouse_id,
+        status,
+        last_login_time,
+        created_time,
+        updated_time
+    </sql>
+
+    <!-- 根据ID查询 -->
+    <select id="selectById"
+            resultMap="WmsUserResultMap">
+
+        SELECT
+        <include refid="BaseColumnList"/>
+        FROM wms_user
+        WHERE id = #{id}
+
+    </select>
+
+    <!-- 根据用户名查询 -->
+    <select id="selectByUsername"
+            resultMap="WmsUserResultMap">
+
+        SELECT
+        <include refid="BaseColumnList"/>
+        FROM wms_user
+        WHERE username = #{username}
+
+    </select>
+
+    <!-- 新增用户 -->
+    <insert id="insert"
+            parameterType="com.example.wms.entity.WmsUser"
+            useGeneratedKeys="true"
+            keyProperty="id">
+
+        INSERT INTO wms_user
+        (
+        username,
+        password_hash,
+        real_name,
+        mobile,
+        email,
+        default_warehouse_id,
+        status
+        )
+        VALUES
+        (
+        #{username},
+        #{passwordHash},
+        #{realName},
+        #{mobile},
+        #{email},
+        #{defaultWarehouseId},
+        #{status}
+        )
+
+    </insert>
+
+    <!-- 更新用户状态 -->
+    <update id="updateStatus">
+
+        UPDATE wms_user
+        SET status = #{status}
+        WHERE id = #{id}
+
+    </update>
+
+
+    <!-- 更新最后登录时间 -->
+    <update id="updateLastLoginTime">
+
+        UPDATE wms_user
+        SET last_login_time = #{lastLoginTime}
+        WHERE id = #{id}
+
+    </update>
+
+
+
+
+</mapper>
