@@ -31,7 +31,7 @@ const expanded = ref(new Set(['入库管理', '库存管理', '基础数据', '�
 
 const dashboard = ref({
   userId: null,
-  realName: '',
+  userName: '',
   warehouseId: null,
   warehouseNo: '',
   warehouseName: '',
@@ -97,12 +97,12 @@ const menuGroups = [
   },
 ]
 
-const stats = [
+const stats = computed(() => [
   { label: '待收货入库单', value: dashboard.value.pendingReceiptCount, tone: 'pink', icon: ReceiptText, hint: '等待仓库接收' },
   { label: '部分收货入库单', value: dashboard.value.partialReceiptCount, tone: 'peach', icon: PackageCheck, hint: '部分数量已确认' },
   { label: '待上架单', value: dashboard.value.pendingPutawayCount, tone: 'lavender', icon: Layers3, hint: '等待分配库位' },
   { label: '库存 SKU 数量', value: dashboard.value.inventorySkuCount, tone: 'teal', icon: Boxes, hint: '当前有库存 SKU' },
-]
+])
 
 const quickActions = [
   { title: '新建入库单', desc: '快速登记采购或调拨入库', icon: ClipboardList },
@@ -220,11 +220,11 @@ function selectItem(label) {
           </label>
           <div class="user-chip">
             <div class="avatar">
-              {{ dashboard.realName?.slice(0, 1) }}
+              {{ dashboard.userName?.slice(0, 1) }}
             </div>
             <div class="user-copy">
               <span>当前用户</span>
-              <strong>{{ dashboard.realName }}</strong>
+              <strong>{{ dashboard.userName }}</strong>
             </div>
           </div>
         </div>
@@ -234,7 +234,7 @@ function selectItem(label) {
         <section class="welcome-panel">
           <div class="welcome-copy">
             <div class="badge"><Sparkles :size="14" />工作台</div>
-            <h2>你好，{{ dashboard.realName }}。</h2>
+            <h2>你好，{{ dashboard.userName }}</h2>
             <p>当前默认仓库为 <strong>{{ dashboard.warehouseName }}</strong>，这里集中展示入库作业和库存状态。</p>
             <div class="welcome-meta">
               <span><Clock3 :size="16" /> 实时业务概览</span>
@@ -313,7 +313,7 @@ function selectItem(label) {
                 <span>入库任务</span>
                 <strong>{{ dashboard.totalTaskCount }} 项</strong>
               </div>
-              <div class="progress-track"><i style="width: 64%" /></div>
+              <div class="progress-track"> <i :style="{ width: `${dashboard.completionRate}%` }" /></div>
               <small>已完成 {{ dashboard.completionRate }}%</small>
             </div>
           </article>
