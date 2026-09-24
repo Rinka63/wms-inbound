@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.example.wms.mapper.DashboardMapper">
+
+    <select id="selectOverviewByuserId"
+            resultType="com.example.wms.dto.DashboardResponse">
+
+        SELECT
+        u.id AS user_id,
+        u.real_name AS user_Name,
+
+        w.id AS warehouse_id,
+        w.warehouse_no,
+        w.warehouse_name,
+
+        /* 待收货入库单 */
+        (
+        SELECT COUNT(*)
+        FROM inbound_order io
+        WHERE io.warehouse_id = w.id
+        AND io.status = 1
+        ) AS pending_receipt_count,
+
+        /* 部分收货入库单 */
+        (
+        SELECT COUNT(*)
+        FROM inbound_order io
+        WHERE io.warehouse_id = w.id
+        AND io.status = 2
+        ) AS partial_receipt_count,
+
+        /* 待上架单 */
+        (
+        SELECT COUNT(*)
+        FROM putaway_order po
+        WHERE po.warehouse_id = w.id
+        AND po.status = 0
+        ) AS pending_putaway_count,
+
+        /* 当前实际有库存的 SKU 种类 */
+        (
+        SELECT COUNT(DISTINCT i.sku_id)
+        FROM inventory i
+        WHERE i.warehouse_id = w.id
+        AND i.quantity > 0
+        ) AS inventory_sku_count,
+
+        /* 所有有效入库任务：排除草稿和取消 */
+        (
+        SELECT COUNT(*)
+        FROM inbound_order io
+        WHERE io.warehouse_id = w.id
+        AND io.status IN (1, 2, 3, 4, 5)
+        ) AS total_task_count,
+
+        /* 已完成任务 */
+        (
+        SELECT COUNT(*)
+        FROM inbound_order io
+        WHERE io.warehouse_id = w.id
+        AND io.status = 5
+        ) AS completed_task_count
+
+        FROM wms_user u
+
+        INNER JOIN warehouse w
+        ON w.id = u.default_warehouse_id
+
+        WHERE u.id = #{userId}
+        AND u.status = 1
+
+    </select>
+
+</mapper>

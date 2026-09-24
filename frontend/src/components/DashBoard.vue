@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import {
   Boxes,
   Building2,
@@ -29,6 +29,50 @@ const sidebarCollapsed = ref(false)
 const active = ref('工作台')
 const expanded = ref(new Set(['入库管理', '库存管理', '基础数据', '个人信息']))
 
+const dashboard = ref({
+  userId: null,
+  realName: '',
+  warehouseId: null,
+  warehouseNo: '',
+  warehouseName: '',
+
+  pendingReceiptCount: 0,
+  partialReceiptCount: 0,
+  pendingPutawayCount: 0,
+  inventorySkuCount: 0,
+
+  totalTaskCount: 0,
+  completedTaskCount: 0,
+  completionRate: 0,
+})
+
+const dashboardLoading = ref(false)
+const dashboardError = ref('')
+const API_URL = 'http://localhost:8080'
+
+async function loadDashboard(){
+  dashboardLoading.value = true
+  dashboardError.value = ''
+
+  try{
+    const userId = 1
+    const response = await fetch(`${API_URL}/dashboard/overview?userId=${userId}`)
+
+    if(!response.ok){
+      throw new Error(`HTTP ${response.status}`)
+    }
+    const result = await response.json()
+    const data = result?.data ?? result
+    dashboard.value = { ...dashboard.value, ...data }
+  }catch (error) {
+    console.error('Failed to load dashboard:', error)
+    dashboardError.value = error instanceof Error ? error.message : String(error)
+  }finally {
+    dashboardLoading.value = false
+  }
+
+}
+
 const menuGroups = [
   { label: '工作台', icon: Grid2X2 },
   {
@@ -54,10 +98,10 @@ const menuGroups = [
 ]
 
 const stats = [
-  { label: '待收货入库单', value: 3, tone: 'pink', icon: ReceiptText, hint: '等待仓库接收' },
-  { label: '部分收货入库单', value: 2, tone: 'peach', icon: PackageCheck, hint: '部分数量已确认' },
-  { label: '待上架单', value: 4, tone: 'lavender', icon: Layers3, hint: '等待分配库位' },
-  { label: '库存 SKU 数量', value: 120, tone: 'teal', icon: Boxes, hint: '当前可管理 SKU' },
+  { label: '待收货入库单', value: dashboard.value.pendingReceiptCount, tone: 'pink', icon: ReceiptText, hint: '等待仓库接收' },
+  { label: '部分收货入库单', value: dashboard.value.partialReceiptCount, tone: 'peach', icon: PackageCheck, hint: '部分数量已确认' },
+  { label: '待上架单', value: dashboard.value.pendingPutawayCount, tone: 'lavender', icon: Layers3, hint: '等待分配库位' },
+  { label: '库存 SKU 数量', value: dashboard.value.inventorySkuCount, tone: 'teal', icon: Boxes, hint: '当前有库存 SKU' },
 ]
 
 const quickActions = [
@@ -67,6 +111,11 @@ const quickActions = [
 ]
 
 const activeTitle = computed(() => active.value)
+const completionRate = computed(() => {
+  const rate = Number(dashboard.value.completionRate) || 0
+  return Math.min(100, Math.max(0, rate))
+})
+onMounted(loadDashboard)
 
 function toggleGroup(label) {
   const next = new Set(expanded.value)
@@ -142,7 +191,7 @@ function selectItem(label) {
           <Building2 :size="18" />
           <div v-if="!sidebarCollapsed">
             <span>默认仓库</span>
-            <strong>一号仓库</strong>
+            <strong>{{ dashboard.warehouseName }}</strong>
           </div>
         </div>
       </div>
@@ -159,7 +208,7 @@ function selectItem(label) {
             <Menu :size="20" />
           </button>
           <div>
-            <div class="eyebrow">WMS · 一号仓库</div>
+            <div class="eyebrow">WMS · {{ dashboard.warehouseName }}</div>
             <h1>{{ activeTitle }}</h1>
           </div>
         </div>
@@ -170,10 +219,12 @@ function selectItem(label) {
             <input placeholder="搜索菜单或单据" />
           </label>
           <div class="user-chip">
-            <div class="avatar">张</div>
+            <div class="avatar">
+              {{ dashboard.realName?.slice(0, 1) }}
+            </div>
             <div class="user-copy">
               <span>当前用户</span>
-              <strong>张三</strong>
+              <strong>{{ dashboard.realName }}</strong>
             </div>
           </div>
         </div>
@@ -182,12 +233,12 @@ function selectItem(label) {
       <main class="content-wrap">
         <section class="welcome-panel">
           <div class="welcome-copy">
-            <div class="badge"><Sparkles :size="14" /> 今日工作台</div>
-            <h2>你好，张三。</h2>
-            <p>当前默认仓库为 <strong>一号仓库</strong>，这里集中展示入库作业和库存状态。</p>
+            <div class="badge"><Sparkles :size="14" />工作台</div>
+            <h2>你好，{{ dashboard.realName }}。</h2>
+            <p>当前默认仓库为 <strong>{{ dashboard.warehouseName }}</strong>，这里集中展示入库作业和库存状态。</p>
             <div class="welcome-meta">
               <span><Clock3 :size="16" /> 实时业务概览</span>
-              <span><Warehouse :size="16" /> 一号仓库</span>
+              <span><Warehouse :size="16" /> {{ dashboard.warehouseName }}</span>
             </div>
           </div>
           <div class="clay-scene" aria-hidden="true">
@@ -253,19 +304,17 @@ function selectItem(label) {
                 </div>
               </div>
               <div class="warehouse-info">
-                <span>默认仓库</span>
                 <strong>一号仓库</strong>
-                <p>当前已启用，入库作业正常。</p>
               </div>
             </div>
 
             <div class="progress-row">
               <div class="progress-copy">
-                <span>今日入库任务</span>
-                <strong>9 项</strong>
+                <span>入库任务</span>
+                <strong>{{ dashboard.totalTaskCount }} 项</strong>
               </div>
               <div class="progress-track"><i style="width: 64%" /></div>
-              <small>已完成 64%</small>
+              <small>已完成 {{ dashboard.completionRate }}%</small>
             </div>
           </article>
         </section>

@@ -4,11 +4,15 @@ import com.example.wms.dto.CreateWmsUserRequest;
 import com.example.wms.dto.LoginRequest;
 import com.example.wms.dto.UpdateWmsUserRequest;
 import com.example.wms.dto.WmsUserResponse;
+import com.example.wms.security.JwtUtil;
 import com.example.wms.service.WmsUserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.Duration;
 
 @RestController
 @RequestMapping("/users")
@@ -16,6 +20,8 @@ import org.springframework.web.bind.annotation.*;
 public class WmsUserController {
 
     private final WmsUserService wmsUserService;
+    private final JwtUtil jwtUtil;
+    private final StringRedisTemplate redis;
 
     /**
      * 创建用户
@@ -33,7 +39,7 @@ public class WmsUserController {
     /**
      * 根据ID查询用户
      */
-    @GetMapping("/{id}")
+    @GetMapping("/userId/{id}")
     public ResponseEntity<WmsUserResponse> getUser(
             @PathVariable Long id) {
 
@@ -65,6 +71,11 @@ public class WmsUserController {
             @RequestBody LoginRequest request){
 
         WmsUserResponse response = wmsUserService.authenticate(request.getUsername(), request.getPassword());
+
+        String token = jwtUtil.generateToken(response.getId(), response.getUsername());
+        response.setToken(token);
+
+        redis.opsForValue().set("login:user:" + response.getId(), token, Duration.ofHours(4));
 
         return ResponseEntity.ok(response);
     }

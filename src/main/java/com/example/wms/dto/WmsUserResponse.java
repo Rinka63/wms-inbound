@@ -26,4 +26,7 @@ public class WmsUserResponse {
     private LocalDateTime createdTime;
 
     private LocalDateTime updatedTime;
+
+    //JWT
+    private String token;
 }
