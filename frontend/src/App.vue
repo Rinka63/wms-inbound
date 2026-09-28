@@ -1,8 +1,8 @@
 <script setup>
 
 import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
-import Login from "./components/Login.vue";
-import Dashboard from './components/DashBoard.vue'
+import Login from "./views/Login.vue";
+import Dashboard from './views/DashBoard.vue'
 
 const currentPath = ref(window.location.hash || '#/login')
 
