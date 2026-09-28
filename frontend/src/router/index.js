@@ -1,33 +1,51 @@
-import {
-    createRouter,
-    createWebHashHistory,
-} from 'vue-router'
+import { createRouter, createWebHashHistory } from 'vue-router'
+import { useUserStore } from '../stores/user'
 
 import Login from '../views/Login.vue'
+import Layout from '../views/Layout.vue'
 import DashBoard from '../views/DashBoard.vue'
-
-import { useUserStore } from '../stores/user'
+import InboundOrder from '../views/InboundOrder.vue'
+import Receipt from '../views/Receipt.vue'
+import Putaway from "../views/Putaway.vue";
 
 const router = createRouter({
     history: createWebHashHistory(),
-
     routes: [
-        {
-            path: '/',
-            redirect: '/dashboard',
-        },
-
         {
             path: '/login',
             component: Login,
+            meta: { guestOnly: true },
         },
-
         {
-            path: '/dashboard',
-            component: DashBoard,
-            meta: {
-                requiresAuth: true,
-            },
+            path: '/',
+            component: Layout,
+            meta: { requiresAuth: true },
+            children: [
+                {
+                    path: '',
+                    redirect: '/dashboard',
+                },
+                {
+                    path: 'dashboard',
+                    component: DashBoard,
+                    meta: { title: '工作台' },
+                },
+                {
+                    path: 'inbound/orders',
+                    component: InboundOrder,
+                    meta: { title: '入库单管理' },
+                },
+                {
+                    path: 'inbound/receipt',
+                    component: Receipt,
+                    meta: {title: '收货管理'}
+                },
+                {
+                    path: 'inbound/putaway',
+                    component: Putaway,
+                    meta: {title: '上架管理'}
+                }
+            ],
         },
     ],
 })

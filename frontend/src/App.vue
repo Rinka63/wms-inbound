@@ -30,6 +30,8 @@ import Dashboard from './views/DashBoard.vue'
 <!--  <Dashboard v-if="isLoggedIn && currentPath === '#/dashboard'"/>-->
 
 <!--  <Login v-else/>-->
-  <RouterView />
+  <div class="page-content">
+    <RouterView />
+  </div>
 
 </template>
