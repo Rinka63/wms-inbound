@@ -149,6 +149,11 @@
 
 <script setup>
 import { reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { useUserStore } from '../stores/user'
+
+const router = useRouter()
+const userStore = useUserStore()
 
 const form = reactive({
   account: '',
@@ -239,11 +244,14 @@ async function handleSubmit() {
       throw new Error(result?.message || '用户名或密码错误')
     }
 
-    localStorage.setItem('wmsUser', JSON.stringify(result))
+    // localStorage.setItem('wmsUser', JSON.stringify(result))
 
     // 后续有 Vue Router 时改成：
     // router.push('/dashboard')
-    window.location.href = '#/dashboard'
+    // window.location.href = '#/dashboard'
+    userStore.setUser(result)
+    router.push('/dashboard')
+
   } catch (error) {
     serverError.value = error.message || '登录失败，请稍后再试。'
   } finally {

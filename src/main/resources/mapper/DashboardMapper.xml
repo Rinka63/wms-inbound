@@ -10,7 +10,7 @@
 
         SELECT
         u.id AS user_id,
-        u.real_name AS user_Name,
+        u.real_name,
 
         w.id AS warehouse_id,
         w.warehouse_no,

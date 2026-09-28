@@ -1,5 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import { useUserStore } from '../stores/user'
+
 import {
   Boxes,
   Building2,
@@ -28,10 +30,11 @@ const sidebarOpen = ref(false)
 const sidebarCollapsed = ref(false)
 const active = ref('工作台')
 const expanded = ref(new Set(['入库管理', '库存管理', '基础数据', '个人信息']))
+const userStore = useUserStore()
 
 const dashboard = ref({
   userId: null,
-  userName: '',
+  realName: '',
   warehouseId: null,
   warehouseNo: '',
   warehouseName: '',
@@ -51,25 +54,21 @@ const dashboardError = ref('')
 const API_URL = 'http://localhost:8080'
 
 async function loadDashboard(){
-  dashboardLoading.value = true
+  // dashboardLoading.value = true
   dashboardError.value = ''
 
-  try{
-    const userId = 1
-    const response = await fetch(`${API_URL}/dashboard/overview?userId=${userId}`)
+  const response = await fetch(`${API_URL}/dashboard/overview?userId=${userStore.userId}`)
 
-    if(!response.ok){
-      throw new Error(`HTTP ${response.status}`)
-    }
-    const result = await response.json()
-    const data = result?.data ?? result
-    dashboard.value = { ...dashboard.value, ...data }
-  }catch (error) {
-    console.error('Failed to load dashboard:', error)
-    dashboardError.value = error instanceof Error ? error.message : String(error)
-  }finally {
-    dashboardLoading.value = false
+  if(!response.ok){
+    throw new Error(`获取 Dashboard 数据失败`)
   }
+
+  const result = await response.json()
+  dashboard.value = result
+  userStore.setWarehouse(result)
+
+  // dashboardLoading.value = false
+
 
 }
 
@@ -220,11 +219,11 @@ function selectItem(label) {
           </label>
           <div class="user-chip">
             <div class="avatar">
-              {{ dashboard.userName?.slice(0, 1) }}
+              {{ userStore.realName?.slice(0, 1) }}
             </div>
             <div class="user-copy">
               <span>当前用户</span>
-              <strong>{{ dashboard.userName }}</strong>
+              <strong>{{ userStore.realName }}</strong>
             </div>
           </div>
         </div>
@@ -234,11 +233,11 @@ function selectItem(label) {
         <section class="welcome-panel">
           <div class="welcome-copy">
             <div class="badge"><Sparkles :size="14" />工作台</div>
-            <h2>你好，{{ dashboard.userName }}</h2>
-            <p>当前默认仓库为 <strong>{{ dashboard.warehouseName }}</strong>，这里集中展示入库作业和库存状态。</p>
+            <h2>你好，{{ userStore.realName }}</h2>
+            <p>当前默认仓库为 <strong>{{ userStore.warehouseName }}</strong>，这里集中展示入库作业和库存状态。</p>
             <div class="welcome-meta">
               <span><Clock3 :size="16" /> 实时业务概览</span>
-              <span><Warehouse :size="16" /> {{ dashboard.warehouseName }}</span>
+              <span><Warehouse :size="16" /> {{ userStore.warehouseName }}</span>
             </div>
           </div>
           <div class="clay-scene" aria-hidden="true">
@@ -304,7 +303,7 @@ function selectItem(label) {
                 </div>
               </div>
               <div class="warehouse-info">
-                <strong>一号仓库</strong>
+                <strong>{{ dashboard.warehouseName }}</strong>
               </div>
             </div>
 
