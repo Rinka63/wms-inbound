@@ -220,11 +220,11 @@ onBeforeUnmount(() => {
       <button class="btn primary" type="button" @click="openEditor()">＋ 新建收货单</button>
     </section>
 
-    <section class="summary">
-      <article v-for="item in stats" :key="item.title" class="summary-card">
-        <small>{{ item.title }}</small><strong>{{ item.value }}</strong><div class="summary-note">{{ item.meta }}</div>
-      </article>
-    </section>
+<!--    <section class="summary">-->
+<!--      <article v-for="item in stats" :key="item.title" class="summary-card">-->
+<!--        <small>{{ item.title }}</small><strong>{{ item.value }}</strong><div class="summary-note">{{ item.meta }}</div>-->
+<!--      </article>-->
+<!--    </section>-->
 
     <section class="panel">
       <div class="filters">

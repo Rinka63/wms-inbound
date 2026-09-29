@@ -1,10 +1,10 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 const keyword = ref('')
 const warehouse = ref('')
 const inboundType = ref('')
-const createdRange = ref('30d')
+const createdRange = ref('all')
 const statusFilter = ref('')
 const drawerOpen = ref(false)
 const selectedOrder = ref(null)
@@ -102,18 +102,6 @@ const stats = computed(() => [
   },
 ])
 
-const filteredOrders = computed(() => {
-  const kw = keyword.value.trim().toLowerCase()
-  return orders.value.filter((item) => {
-    const matchKeyword = !kw || item.inboundOrderNo.toLowerCase().includes(kw)
-    const matchWarehouse = !warehouse.value || item.warehouseName === warehouse.value
-    const matchType = inboundType.value === '' || item.inboundType === Number(inboundType.value)
-    const matchStatus = statusFilter.value === '' || item.status === Number(statusFilter.value)
-    const matchDate = matchesCreatedRange(item.createdTime)
-    return matchKeyword && matchWarehouse && matchType && matchStatus && matchDate
-  })
-})
-
 const detailTabs = computed(() => {
   const order = selectedOrder.value
   return [
@@ -122,6 +110,93 @@ const detailTabs = computed(() => {
     { key: 'putaways', label: '上架记录', count: order?.putaways?.length || 0 },
     { key: 'timeline', label: '业务轨迹', count: order?.timeline?.length || 0 },
   ]
+})
+
+const filteredOrders = computed(() => {
+  const kw = keyword.value.trim().toLowerCase()
+
+  return orders.value.filter((item) => {
+    // 入库单号
+    const matchKeyword =
+        !kw ||
+        String(item.inboundOrderNo ?? '')
+            .toLowerCase()
+            .includes(kw)
+
+    // 仓库
+    const matchWarehouse =
+        !warehouse.value ||
+        item.warehouseName === warehouse.value
+
+    // 入库类型
+    const matchType =
+        inboundType.value === '' ||
+        Number(item.inboundType) === Number(inboundType.value)
+
+    // 状态
+    const matchStatus =
+        statusFilter.value === '' ||
+        Number(item.status) === Number(statusFilter.value)
+
+    // 创建时间
+    const matchCreatedTime =
+        matchesCreatedRange(item.createdTime)
+
+    return (
+        matchKeyword &&
+        matchWarehouse &&
+        matchType &&
+        matchStatus &&
+        matchCreatedTime
+    )
+  })
+})
+
+// 当前页
+const currentPage = ref(1)
+
+// 每页条数
+const pageSize = ref(10)
+
+// 筛选后的总条数
+const totalItems = computed(() => filteredOrders.value.length)
+
+// 总页数
+const totalPages = computed(() => {
+  return Math.max(
+      1,
+      Math.ceil(totalItems.value / pageSize.value)
+  )
+})
+
+// 当前页的数据
+const paginatedOrders = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  const end = start + pageSize.value
+
+  return filteredOrders.value.slice(start, end)
+})
+
+// 筛选条件变化后，自动回到第一页
+watch(
+    [
+      keyword,
+      warehouse,
+      inboundType,
+      createdRange,
+      statusFilter,
+      pageSize
+    ],
+    () => {
+      currentPage.value = 1
+    }
+)
+
+// 防止删除/筛选数据后当前页超过最大页数
+watch(totalPages, (pages) => {
+  if (currentPage.value > pages) {
+    currentPage.value = pages
+  }
 })
 
 function matchesCreatedRange(value) {
@@ -170,7 +245,7 @@ function resetFilters() {
   keyword.value = ''
   warehouse.value = ''
   inboundType.value = ''
-  createdRange.value = '30d'
+  createdRange.value = 'all'
   statusFilter.value = ''
 }
 
@@ -249,7 +324,7 @@ onBeforeUnmount(() => {
       <div class="inbound-filters">
         <div class="inbound-field">
           <label>入库单号</label>
-          <input v-model.trim="keyword" class="inbound-input" placeholder="例如 IN202609240001" />
+          <input v-model.trim="keyword" class="inbound-input" placeholder="例如 IB202609240001" />
         </div>
 
         <div class="inbound-field">
@@ -261,22 +336,11 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="inbound-field">
-          <label>入库类型</label>
-          <select v-model="inboundType">
-            <option value="">全部类型</option>
-            <option value="1">采购入库</option>
-            <option value="2">退货入库</option>
-            <option value="3">调拨入库</option>
-            <option value="4">其他入库</option>
-          </select>
-        </div>
-
-        <div class="inbound-field">
           <label>创建时间</label>
           <select v-model="createdRange">
             <option value="30d">近 30 天</option>
-            <option value="today">今天</option>
             <option value="7d">近 7 天</option>
+            <option value="today">今天</option>
             <option value="all">全部</option>
           </select>
         </div>
@@ -296,7 +360,7 @@ onBeforeUnmount(() => {
             {{ tab.label }}
           </button>
         </div>
-        <div class="inbound-count">共 <b>{{ filteredOrders.length }}</b> 条</div>
+        <div class="inbound-count">共 <b>{{ orders.length }}</b> 条</div>
       </div>
 
       <div class="inbound-table-wrap">
@@ -315,7 +379,7 @@ onBeforeUnmount(() => {
           </tr>
           </thead>
           <tbody>
-          <tr v-for="order in filteredOrders" :key="order.id">
+          <tr v-for="order in paginatedOrders" :key="order.id">
             <td>
               <div class="inbound-order-no">{{ order.inboundOrderNo }}</div>
 <!--              <div class="inbound-secondary">{{ formatQty(order.planQty) }} 计划量</div>-->
@@ -352,7 +416,33 @@ onBeforeUnmount(() => {
         </table>
       </div>
 
-      <div class="inbound-note">数量来自 inbound_order_item 的 plan_qty / received_qty / putaway_qty 汇总。</div>
+      <div
+          v-if="filteredOrders.length > 0"
+          class="inbound-pagination"
+      >
+        <!-- 每页条数 -->
+        <select v-model.number="pageSize">
+          <option :value="10">10 条/页</option>
+          <option :value="20">20 条/页</option>
+          <option :value="50">50 条/页</option>
+        </select>
+
+
+        <button
+            :disabled="currentPage <= 1"
+            @click="currentPage--"
+        >上一页</button>
+
+
+        <span>第 {{ currentPage }} / {{ totalPages }} 页</span>
+
+
+        <button
+            :disabled="currentPage >= totalPages"
+            @click="currentPage++">下一页</button>
+
+        <span>共 {{ filteredOrders.length }} 条 </span>
+      </div>
     </section>
 
     <div v-if="drawerOpen && selectedOrder" class="inbound-drawer-mask" @click.self="closeDrawer">
@@ -774,6 +864,7 @@ onBeforeUnmount(() => {
 .inbound-link-btn.accent { color: #b1285d; }
 
 .inbound-note { padding: 16px 18px; color: var(--muted); font-size: 12px; }
+
 .inbound-empty { padding: 22px !important; color: var(--muted); text-align: center !important; }
 .inbound-empty-panel { border: 1px dashed var(--hairline); border-radius: 16px; background: var(--surface-soft); }
 
@@ -1073,6 +1164,28 @@ onBeforeUnmount(() => {
 .inbound-event .p.ochre { background: var(--ochre); }
 .inbound-event strong { font-size: 13px; }
 .inbound-event span { display: block; margin-top: 5px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+
+.inbound-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 0;
+}
+
+.inbound-pagination button {
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.inbound-pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.inbound-pagination select {
+  padding: 6px 8px;
+}
 
 @media (max-width: 1100px) {
   .inbound-stats { grid-template-columns: repeat(2, 1fr); }
