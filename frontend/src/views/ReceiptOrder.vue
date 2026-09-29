@@ -16,7 +16,7 @@ import { useUserStore } from '../stores/user'
  */
 const STORAGE_KEY = 'wms-inbound-practice-v1';
 const STATUS = {
-  receipt: {0: '草稿', 1: '已完成', 2: '已取消'},
+  receipt: {0: '未完成', 1: '已完成', 2: '已取消'},
   putaway: {0: '待上架', 1: '上架中', 2: '已完成', 3: '已取消'}
 };
 function units(value) {
@@ -472,7 +472,7 @@ const {
       </div>
       <button class="btn primary" type="button" @click="openEditor()">＋ 新建{{ word }}单</button>
     </section>
-    
+
 
     <section class="panel">
       <div class="filters">
@@ -574,11 +574,6 @@ const {
         {{ receiving?'草稿数量不计入入库单累计已收货。':'“上架中”仅表示正在办理且已暂存，不表示部分库存已入账。' }}</div>
     </section>
 
-    <div class="demo-bar">
-      <span>浏览器演示：保存与确认写入 localStorage，不连接 MySQL，也不会更新原有静态 InboundOrder.vue。</span>
-      <button class="link" type="button" @click="resetDemo">重置演示数据</button>
-    </div>
-    <div v-if="message" class="toast" :class="{error:messageError}" role="status" aria-live="polite">{{ message }}</div>
 
     <!-- 这是办理弹窗，不是重复的只读详情页。 -->
     <dialog ref="editor" aria-labelledby="operation-title" @cancel.prevent="closeEditor">

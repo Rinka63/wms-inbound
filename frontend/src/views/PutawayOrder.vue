@@ -573,11 +573,6 @@ const {
         {{ receiving?'草稿数量不计入入库单累计已收货。':'“上架中”仅表示正在办理且已暂存，不表示部分库存已入账。' }}</div>
     </section>
 
-    <div class="demo-bar">
-      <span>浏览器演示：保存与确认写入 localStorage，不连接 MySQL，也不会更新原有静态 InboundOrder.vue。</span>
-      <button class="link" type="button" @click="resetDemo">重置演示数据</button>
-    </div>
-    <div v-if="message" class="toast" :class="{error:messageError}" role="status" aria-live="polite">{{ message }}</div>
 
     <!-- 这是办理弹窗，不是重复的只读详情页。 -->
     <dialog ref="editor" aria-labelledby="operation-title" @cancel.prevent="closeEditor">
