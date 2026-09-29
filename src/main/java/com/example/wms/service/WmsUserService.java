@@ -31,7 +31,7 @@ public class WmsUserService {
         user.setEmail(request.getEmail());
         user.setDefaultWarehouseId(request.getDefaultWarehouseId());
 
-        user.setStatus(1);
+        user.setUserStatus(1);
 
         int rows = wmsUserMapper.insert(user);
 
@@ -81,7 +81,7 @@ public class WmsUserService {
             throw new BusinessException("用户名或密码错误");
         }
 
-        if (!Integer.valueOf(1).equals(user.getStatus())) {
+        if (!Integer.valueOf(1).equals(user.getUserStatus())) {
             throw new BusinessException("用户已被禁用");
         }
 
@@ -140,19 +140,19 @@ public class WmsUserService {
 
     private void changeStatus(
             Long id,
-            Integer status) {
+            Integer userStatus) {
 
         WmsUser user = wmsUserMapper.selectById(id);
 
         if (user == null) {
-            throw new BusinessException("用户不存在，无法禁用");
+            throw new BusinessException("用户不存在，无法修改状态");
         }
 
-        if (status.equals(user.getStatus())) {
+        if (userStatus.equals(user.getUserStatus())) {
             return;
         }
 
-        int rows = wmsUserMapper.updateStatus(id, status);
+        int rows = wmsUserMapper.updateStatus(id, userStatus);
 
         if (rows != 1) {
             throw new BusinessException("修改用户状态失败");
@@ -176,18 +176,18 @@ public class WmsUserService {
                 user.getDefaultWarehouseId()
         );
 
-        response.setStatus(user.getStatus());
+        response.setStatus(user.getUserStatus());
 
         response.setLastLoginTime(
                 user.getLastLoginTime()
         );
 
         response.setCreatedTime(
-                user.getCreatedTime()
+                user.getGmtCreate()
         );
 
         response.setUpdatedTime(
-                user.getUpdatedTime()
+                user.getGmtModified()
         );
 
         return response;

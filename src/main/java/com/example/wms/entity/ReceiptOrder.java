@@ -33,13 +33,13 @@ public class ReceiptOrder {
     private Long receiverId;
 
     /**
-     * 收货状态
+     * 收货单状态，对应 receipt_order.receipt_status
      *
      * 0：草稿
      * 1：已完成
      * 2：已取消
      */
-    private Integer status;
+    private Integer receiptStatus;
 
     /**
      * 实际收货时间
@@ -49,12 +49,12 @@ public class ReceiptOrder {
     /**
      * 创建时间
      */
-    private LocalDateTime createdTime;
+    private LocalDateTime gmtCreate;
 
     /**
      * 更新时间
      */
-    private LocalDateTime updatedTime;
+    private LocalDateTime gmtModified;
 
     /**
      * 备注

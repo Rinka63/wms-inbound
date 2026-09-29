@@ -32,7 +32,7 @@ public class InboundOrder {
     private Integer inboundType;
 
     /**
-     * 入库状态
+     * 入库单状态，对应 inbound_order.inbound_status
      *
      * 0：草稿
      * 1：待收货
@@ -42,7 +42,7 @@ public class InboundOrder {
      * 5：已完成
      * 6：已取消
      */
-    private Integer status;
+    private Integer inboundStatus;
 
     /**
      * 创建人ID
@@ -52,12 +52,12 @@ public class InboundOrder {
     /**
      * 创建时间
      */
-    private LocalDateTime createdTime;
+    private LocalDateTime gmtCreate;
 
     /**
      * 更新时间
      */
-    private LocalDateTime updatedTime;
+    private LocalDateTime gmtModified;
 
     /**
      * 备注

@@ -42,12 +42,12 @@ public class WmsUser {
     private Long defaultWarehouseId;
 
     /**
-     * 用户状态
+     * 用户状态，对应 wms_user.user_status
      *
      * 0：禁用
      * 1：启用
      */
-    private Integer status;
+    private Integer userStatus;
 
     /**
      * 最后登录时间
@@ -57,10 +57,10 @@ public class WmsUser {
     /**
      * 创建时间
      */
-    private LocalDateTime createdTime;
+    private LocalDateTime gmtCreate;
 
     /**
      * 更新时间
      */
-    private LocalDateTime updatedTime;
+    private LocalDateTime gmtModified;
 }

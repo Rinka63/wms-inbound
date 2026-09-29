@@ -24,11 +24,12 @@ public class DashboardService {
         Long total = response.getTotalTaskCount();
         Long completed = response.getCompletedTaskCount();
 
-        if(0 == total||0 == completed){
+        // total 为 null 或 0 时完成率按 0 处理，避免拆箱 NPE 和除零
+        if (total == null || total == 0L) {
             response.setCompletionRate(0);
-        }else{
-            int rate = (int)Math.round(completed*100.0 / total);
-            response.setCompletionRate(rate);
+        } else {
+            long done = completed == null ? 0L : completed;
+            response.setCompletionRate((int) Math.round(done * 100.0 / total));
         }
 
         return response;

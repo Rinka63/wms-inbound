@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 const keyword = ref('')
 const warehouse = ref('')
@@ -8,6 +8,7 @@ const createdRange = ref('30d')
 const statusFilter = ref('')
 const drawerOpen = ref(false)
 const selectedOrder = ref(null)
+const activeDetailTab = ref('items')
 
 const typeMap = {
   1: '采购入库',
@@ -45,8 +46,6 @@ const statusTabs = [
   { label: '已完成', value: 5 },
 ]
 
-// 先用你原 inbound-order-clay.html 中的数据跑通页面。
-// 后端列表接口完成后，把这里替换成 fetch() 返回的数据即可。
 const orders = ref([
   {
     id: 1,
@@ -60,47 +59,200 @@ const orders = ref([
     putawayQty: 480,
     creatorName: '陈小北',
     createdTime: '2026-09-24 09:18',
-    remark: '供应商分两批到货',
+    updatedTime: '2026-09-24 13:05',
+    remark: '供应商分两批到货，本次先完成第一批收货与部分上架。',
     items: [
-      { sku: 'SKU-APPLE-001', skuName: '苹果礼盒 12 枚', planQty: 600, receivedQty: 600, putawayQty: 480 },
-      { sku: 'SKU-PEAR-002', skuName: '秋月梨 6 枚', planQty: 600, receivedQty: 120, putawayQty: 0 },
+      {
+        sku: 'SKU-APPLE-001',
+        skuName: '苹果礼盒 12 枚',
+        planQty: 600,
+        receivedQty: 600,
+        putawayQty: 480,
+      },
+      {
+        sku: 'SKU-PEAR-002',
+        skuName: '秋月梨礼盒',
+        planQty: 600,
+        receivedQty: 120,
+        putawayQty: 0,
+      },
+    ],
+    receipts: [
+      {
+        no: 'RC202609240008',
+        subtitle: '第一批到货收货单',
+        status: '已完成',
+        statusClass: 's5',
+        receiver: '王海',
+        qty: 720,
+        time: '2026-09-24 11:36',
+        remark: '供应商第一批到货',
+      },
+      {
+        no: 'RC202609250003',
+        subtitle: '第二批收货任务',
+        status: '草稿',
+        statusClass: 's0',
+        receiver: '李敏',
+        qty: 0,
+        time: '—',
+        remark: '等待第二批车辆到仓',
+      },
+    ],
+    putaways: [
+      {
+        no: 'PA202609240003',
+        subtitle: '来源收货单：RC202609240008',
+        status: '已完成',
+        statusClass: 's5',
+        operator: '赵一',
+        qtyLabel: '上架数量',
+        qty: 480,
+        time: '2026-09-24 13:05',
+        remark: '苹果礼盒完成首批上架',
+      },
+      {
+        no: 'PA202609240009',
+        subtitle: '来源收货单：RC202609240008',
+        status: '待上架',
+        statusClass: 's4',
+        operator: '陈航',
+        qtyLabel: '计划处理',
+        qty: 240,
+        time: '—',
+        remark: '等待分配目标库位',
+      },
     ],
     timeline: [
       { title: '创建入库单', meta: '陈小北 · 2026-09-24 09:18', tone: 'pink' },
-      { title: '完成首批收货 · RC202609240008', meta: '收货 720.000 · 王海 · 11:36', tone: 'lavender' },
-      { title: '完成首批上架 · PA202609240003', meta: '上架 480.000 · 赵一 · 13:05', tone: 'ochre' },
+      { title: '入库单进入待收货状态', meta: '陈小北 · 2026-09-24 09:26', tone: 'pink' },
+      { title: '完成收货 · RC202609240008', meta: '本次收货 720.000 · 王海 · 2026-09-24 11:36', tone: 'lavender' },
+      { title: '完成上架 · PA202609240003', meta: '本次上架 480.000 · 赵一 · 2026-09-24 13:05', tone: 'ochre' },
     ],
   },
-  { id: 2, inboundOrderNo: 'IN202609240002', warehouseId: 1, warehouseName: '华东一号仓', inboundType: 1, status: 1, planQty: 860, receivedQty: 0, putawayQty: 0, creatorName: '李敏', createdTime: '2026-09-24 10:02', remark: '' },
-  { id: 3, inboundOrderNo: 'IN202609230018', warehouseId: 2, warehouseName: '华南中心仓', inboundType: 2, status: 3, planQty: 32, receivedQty: 32, putawayQty: 0, creatorName: '周宁', createdTime: '2026-09-23 16:40', remark: '' },
-  { id: 4, inboundOrderNo: 'IN202609230011', warehouseId: 1, warehouseName: '华东一号仓', inboundType: 3, status: 4, planQty: 2400, receivedQty: 2400, putawayQty: 1800, creatorName: '陈小北', createdTime: '2026-09-23 11:25', remark: '' },
-  { id: 5, inboundOrderNo: 'IN202609220009', warehouseId: 2, warehouseName: '华南中心仓', inboundType: 1, status: 5, planQty: 510, receivedQty: 510, putawayQty: 510, creatorName: '许晓', createdTime: '2026-09-22 14:08', remark: '' },
-  { id: 6, inboundOrderNo: 'IN202609220004', warehouseId: 1, warehouseName: '华东一号仓', inboundType: 4, status: 0, planQty: 120, receivedQty: 0, putawayQty: 0, creatorName: '李敏', createdTime: '2026-09-22 09:31', remark: '' },
+  {
+    id: 2,
+    inboundOrderNo: 'IN202609240002',
+    warehouseId: 1,
+    warehouseName: '华东一号仓',
+    inboundType: 1,
+    status: 1,
+    planQty: 860,
+    receivedQty: 0,
+    putawayQty: 0,
+    creatorName: '李敏',
+    createdTime: '2026-09-24 10:02',
+    remark: '',
+  },
+  {
+    id: 3,
+    inboundOrderNo: 'IN202609230018',
+    warehouseId: 2,
+    warehouseName: '华南中心仓',
+    inboundType: 2,
+    status: 3,
+    planQty: 32,
+    receivedQty: 32,
+    putawayQty: 0,
+    creatorName: '周宁',
+    createdTime: '2026-09-23 16:40',
+    remark: '',
+  },
+  {
+    id: 4,
+    inboundOrderNo: 'IN202609230011',
+    warehouseId: 1,
+    warehouseName: '华东一号仓',
+    inboundType: 3,
+    status: 4,
+    planQty: 2400,
+    receivedQty: 2400,
+    putawayQty: 1800,
+    creatorName: '陈小北',
+    createdTime: '2026-09-23 11:25',
+    remark: '',
+  },
+  {
+    id: 5,
+    inboundOrderNo: 'IN202609220009',
+    warehouseId: 2,
+    warehouseName: '华南中心仓',
+    inboundType: 1,
+    status: 5,
+    planQty: 510,
+    receivedQty: 510,
+    putawayQty: 510,
+    creatorName: '许晓',
+    createdTime: '2026-09-22 14:08',
+    remark: '',
+  },
+  {
+    id: 6,
+    inboundOrderNo: 'IN202609220004',
+    warehouseId: 1,
+    warehouseName: '华东一号仓',
+    inboundType: 4,
+    status: 0,
+    planQty: 120,
+    receivedQty: 0,
+    putawayQty: 0,
+    creatorName: '李敏',
+    createdTime: '2026-09-22 09:31',
+    remark: '',
+  },
 ])
 
 const warehouseOptions = computed(() =>
-  [...new Set(orders.value.map((item) => item.warehouseName))]
+    [...new Set(orders.value.map((item) => item.warehouseName))]
 )
 
 const stats = computed(() => [
-  { label: '待收货', value: orders.value.filter((item) => item.status === 1).length, tone: 'pink', meta: '等待仓库接收' },
-  { label: '部分收货', value: orders.value.filter((item) => item.status === 2).length, tone: 'lav', meta: '需继续收货' },
-  { label: '待上架', value: orders.value.filter((item) => [3, 4].includes(item.status)).length, tone: 'peach', meta: '已收货或部分上架' },
-  { label: '已完成', value: orders.value.filter((item) => item.status === 5).length, tone: 'ochre', meta: '当前列表已完成单据' },
+  {
+    label: '待收货',
+    value: orders.value.filter((item) => item.status === 1).length,
+    tone: 'pink',
+    meta: '等待仓库接收',
+  },
+  {
+    label: '部分收货',
+    value: orders.value.filter((item) => item.status === 2).length,
+    tone: 'lav',
+    meta: '需继续收货',
+  },
+  {
+    label: '待上架',
+    value: orders.value.filter((item) => [3, 4].includes(item.status)).length,
+    tone: 'peach',
+    meta: '已收货或部分上架',
+  },
+  {
+    label: '已完成',
+    value: orders.value.filter((item) => item.status === 5).length,
+    tone: 'ochre',
+    meta: '当前列表已完成单据',
+  },
 ])
 
 const filteredOrders = computed(() => {
   const kw = keyword.value.trim().toLowerCase()
-
   return orders.value.filter((item) => {
     const matchKeyword = !kw || item.inboundOrderNo.toLowerCase().includes(kw)
     const matchWarehouse = !warehouse.value || item.warehouseName === warehouse.value
     const matchType = inboundType.value === '' || item.inboundType === Number(inboundType.value)
     const matchStatus = statusFilter.value === '' || item.status === Number(statusFilter.value)
     const matchDate = matchesCreatedRange(item.createdTime)
-
     return matchKeyword && matchWarehouse && matchType && matchStatus && matchDate
   })
+})
+
+const detailTabs = computed(() => {
+  const order = selectedOrder.value
+  return [
+    { key: 'items', label: '入库明细', count: order?.items?.length || 0 },
+    { key: 'receipts', label: '收货记录', count: order?.receipts?.length || 0 },
+    { key: 'putaways', label: '上架记录', count: order?.putaways?.length || 0 },
+    { key: 'timeline', label: '业务轨迹', count: order?.timeline?.length || 0 },
+  ]
 })
 
 function matchesCreatedRange(value) {
@@ -138,10 +290,10 @@ function formatQty(value) {
 
 function actionText(status) {
   if (status === 0) return ['编辑', '提交']
-  if (status === 1) return ['收货', '取消']
-  if (status === 2) return ['继续收货', '详情']
-  if (status === 3) return ['创建上架单', '详情']
-  if (status === 4) return ['继续上架', '详情']
+  if (status === 1) return ['详情', '收货']
+  if (status === 2) return ['详情', '继续收货']
+  if (status === 3) return ['详情', '创建上架单']
+  if (status === 4) return ['详情', '继续上架']
   return ['详情']
 }
 
@@ -155,6 +307,7 @@ function resetFilters() {
 
 function openDrawer(order) {
   selectedOrder.value = order
+  activeDetailTab.value = 'items'
   drawerOpen.value = true
 }
 
@@ -162,18 +315,40 @@ function closeDrawer() {
   drawerOpen.value = false
 }
 
-function pendingText(item) {
-  const pendingReceive = Math.max(0, Number(item.planQty) - Number(item.receivedQty))
-  const pendingPutaway = Math.max(0, Number(item.receivedQty) - Number(item.putawayQty))
+function pendingReceive(item) {
+  return Math.max(0, Number(item.planQty || 0) - Number(item.receivedQty || 0))
+}
 
-  if (pendingReceive > 0) return `${formatQty(pendingReceive)} 待收货`
-  if (pendingPutaway > 0) return `${formatQty(pendingPutaway)} 待上架`
-  return '已完成'
+function pendingPutaway(item) {
+  return Math.max(0, Number(item.receivedQty || 0) - Number(item.putawayQty || 0))
+}
+
+function itemStatus(item) {
+  if (Number(item.receivedQty || 0) < Number(item.planQty || 0)) {
+    return Number(item.receivedQty || 0) > 0
+        ? { label: '部分收货', className: 's2' }
+        : { label: '待收货', className: 's1' }
+  }
+
+  if (Number(item.putawayQty || 0) < Number(item.receivedQty || 0)) {
+    return { label: '待上架', className: 's4' }
+  }
+
+  return { label: '已完成', className: 's5' }
 }
 
 function handleCreate() {
   window.alert('下一步可在这里接入“新建入库单”表单或单独路由。')
 }
+
+function handleKeydown(event) {
+  if (event.key === 'Escape' && drawerOpen.value) {
+    closeDrawer()
+  }
+}
+
+onMounted(() => window.addEventListener('keydown', handleKeydown))
+onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
 </script>
 
 <template>
@@ -237,11 +412,11 @@ function handleCreate() {
       <div class="inbound-toolbar">
         <div class="inbound-tabs">
           <button
-            v-for="tab in statusTabs"
-            :key="tab.label"
-            class="inbound-tab"
-            :class="{ active: statusFilter === tab.value }"
-            @click="statusFilter = tab.value"
+              v-for="tab in statusTabs"
+              :key="tab.label"
+              class="inbound-tab"
+              :class="{ active: statusFilter === tab.value }"
+              @click="statusFilter = tab.value"
           >
             {{ tab.label }}
           </button>
@@ -250,114 +425,257 @@ function handleCreate() {
       </div>
 
       <div class="inbound-table-wrap">
-        <table class="inbound-table">
+        <table class="inbound-table inbound-list-table">
           <thead>
-            <tr>
-              <th>入库单</th>
-              <th>仓库</th>
-              <th>类型</th>
-              <th>状态</th>
-              <th>收货进度</th>
-              <th>上架进度</th>
-              <th>创建人</th>
-              <th>创建时间</th>
-              <th>操作</th>
-            </tr>
+          <tr>
+            <th>入库单</th>
+            <th>仓库</th>
+            <th>状态</th>
+            <th>数量</th>
+            <th>已收货</th>
+            <th>已上架</th>
+            <th>创建人</th>
+            <th>创建时间</th>
+            <th>操作</th>
+          </tr>
           </thead>
           <tbody>
-            <tr v-for="order in filteredOrders" :key="order.id">
-              <td>
-                <div class="inbound-order-no">{{ order.inboundOrderNo }}</div>
-                <div class="inbound-secondary">{{ formatQty(order.planQty) }} 计划量</div>
-              </td>
-              <td>{{ order.warehouseName }}</td>
-              <td>{{ typeMap[order.inboundType] }}</td>
-              <td><span class="inbound-badge" :class="statusClassMap[order.status]">{{ statusMap[order.status] }}</span></td>
-              <td>
-                <div class="inbound-progress">
-                  <div class="inbound-track"><div class="inbound-fill" :style="{ width: `${pct(order.receivedQty, order.planQty)}%` }" /></div>
-                  <div class="inbound-progress-text">{{ formatQty(order.receivedQty) }} / {{ formatQty(order.planQty) }} · {{ pct(order.receivedQty, order.planQty) }}%</div>
-                </div>
-              </td>
-              <td>
-                <div class="inbound-progress">
-                  <div class="inbound-track"><div class="inbound-fill" :style="{ width: `${pct(order.putawayQty, order.planQty)}%` }" /></div>
-                  <div class="inbound-progress-text">{{ formatQty(order.putawayQty) }} / {{ formatQty(order.planQty) }} · {{ pct(order.putawayQty, order.planQty) }}%</div>
-                </div>
-              </td>
-              <td>{{ order.creatorName }}</td>
-              <td>{{ order.createdTime }}</td>
-              <td>
-                <div class="inbound-actions">
-                  <button
+          <tr v-for="order in filteredOrders" :key="order.id">
+            <td>
+              <div class="inbound-order-no">{{ order.inboundOrderNo }}</div>
+<!--              <div class="inbound-secondary">{{ formatQty(order.planQty) }} 计划量</div>-->
+            </td>
+            <td>{{ order.warehouseName }}</td>
+            <td>
+                <span class="inbound-badge" :class="statusClassMap[order.status]">
+                  {{ statusMap[order.status] }}
+                </span>
+            </td>
+            <td class="inbound-qty">{{ formatQty(order.planQty) }}</td>
+            <td class="inbound-qty">{{ formatQty(order.receivedQty) }}</td>
+            <td class="inbound-qty">{{ formatQty(order.putawayQty) }}</td>
+            <td>{{ order.creatorName }}</td>
+            <td>{{ order.createdTime }}</td>
+            <td>
+              <div class="inbound-actions">
+                <button
                     v-for="(action, index) in actionText(order.status)"
                     :key="action"
                     class="inbound-link-btn"
                     :class="{ accent: index === 0 }"
                     @click="openDrawer(order)"
-                  >
-                    {{ action }}
-                  </button>
-                </div>
-              </td>
-            </tr>
-
-            <tr v-if="filteredOrders.length === 0">
-              <td colspan="9" class="inbound-empty">没有符合条件的入库单</td>
-            </tr>
+                >
+                  {{ action }}
+                </button>
+              </div>
+            </td>
+          </tr>
+          <tr v-if="filteredOrders.length === 0">
+            <td colspan="9" class="inbound-empty">没有符合条件的入库单</td>
+          </tr>
           </tbody>
         </table>
       </div>
 
-      <div class="inbound-note">进度来自 inbound_order_item 的 plan_qty / received_qty / putaway_qty 汇总。</div>
+      <div class="inbound-note">数量来自 inbound_order_item 的 plan_qty / received_qty / putaway_qty 汇总。</div>
     </section>
 
     <div v-if="drawerOpen && selectedOrder" class="inbound-drawer-mask" @click.self="closeDrawer">
-      <aside class="inbound-drawer">
-        <div class="inbound-drawer-head">
+      <aside class="inbound-drawer" aria-label="入库单详情">
+        <header class="inbound-drawer-head">
           <div>
-            <div class="inbound-kicker">INBOUND DETAIL</div>
-            <h3>{{ selectedOrder.inboundOrderNo }}</h3>
+            <div class="inbound-kicker">INBOUND ORDER DETAIL</div>
+            <div class="inbound-drawer-title-row">
+              <h3>{{ selectedOrder.inboundOrderNo }}</h3>
+              <span class="inbound-badge" :class="statusClassMap[selectedOrder.status]">
+                {{ statusMap[selectedOrder.status] }}
+              </span>
+            </div>
             <p>{{ typeMap[selectedOrder.inboundType] }} · {{ selectedOrder.warehouseName }}</p>
           </div>
-          <button class="inbound-close" @click="closeDrawer">✕</button>
-        </div>
+          <button class="inbound-close" aria-label="关闭" @click="closeDrawer">✕</button>
+        </header>
 
-        <div class="inbound-detail-grid">
-          <div class="inbound-detail-card"><div class="k">当前状态</div><div class="v">{{ statusMap[selectedOrder.status] }}</div></div>
-          <div class="inbound-detail-card"><div class="k">计划数量</div><div class="v">{{ formatQty(selectedOrder.planQty) }}</div></div>
-          <div class="inbound-detail-card"><div class="k">已收 / 已上架</div><div class="v">{{ formatQty(selectedOrder.receivedQty) }} / {{ formatQty(selectedOrder.putawayQty) }}</div></div>
-          <div class="inbound-detail-card"><div class="k">创建人</div><div class="v">{{ selectedOrder.creatorName }}</div></div>
-          <div class="inbound-detail-card"><div class="k">创建时间</div><div class="v">{{ selectedOrder.createdTime }}</div></div>
-          <div class="inbound-detail-card"><div class="k">备注</div><div class="v">{{ selectedOrder.remark || '—' }}</div></div>
-        </div>
+        <div class="inbound-drawer-body">
+          <section class="inbound-summary-grid">
+            <article class="inbound-metric-card">
+              <div class="label">计划入库</div>
+              <div class="value">{{ formatQty(selectedOrder.planQty) }}</div>
+              <div class="hint">{{ selectedOrder.items?.length || 0 }} 个 SKU</div>
+            </article>
+            <article class="inbound-metric-card">
+              <div class="label">已收货</div>
+              <div class="value">{{ formatQty(selectedOrder.receivedQty) }}</div>
+              <div class="hint">
+                待收货 {{ formatQty(Math.max(0, selectedOrder.planQty - selectedOrder.receivedQty)) }}
+              </div>
+            </article>
+            <article class="inbound-metric-card">
+              <div class="label">已上架</div>
+              <div class="value">{{ formatQty(selectedOrder.putawayQty) }}</div>
+              <div class="hint">
+                待上架 {{ formatQty(Math.max(0, selectedOrder.receivedQty - selectedOrder.putawayQty)) }}
+              </div>
+            </article>
+          </section>
 
-        <div class="inbound-section-title">入库明细</div>
-        <div class="inbound-mini-table inbound-table-wrap">
-          <table class="inbound-table">
-            <thead><tr><th>SKU</th><th>计划</th><th>已收货</th><th>已上架</th><th>待处理</th></tr></thead>
-            <tbody>
-              <tr v-for="item in selectedOrder.items || []" :key="item.sku">
-                <td><b>{{ item.sku }}</b><div class="inbound-secondary">{{ item.skuName }}</div></td>
-                <td>{{ formatQty(item.planQty) }}</td>
-                <td>{{ formatQty(item.receivedQty) }}</td>
-                <td>{{ formatQty(item.putawayQty) }}</td>
-                <td>{{ pendingText(item) }}</td>
-              </tr>
-              <tr v-if="!selectedOrder.items?.length">
-                <td colspan="5" class="inbound-empty">暂无明细数据</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+          <section class="inbound-progress-panel">
+            <div class="inbound-progress-row">
+              <div class="inbound-progress-head">
+                <span class="name">收货进度</span>
+                <span class="note">{{ formatQty(selectedOrder.receivedQty) }} / {{ formatQty(selectedOrder.planQty) }}</span>
+                <span class="percent">{{ pct(selectedOrder.receivedQty, selectedOrder.planQty) }}%</span>
+              </div>
+              <div class="inbound-detail-track">
+                <div
+                    class="inbound-detail-fill receive"
+                    :style="{ width: `${pct(selectedOrder.receivedQty, selectedOrder.planQty)}%` }"
+                />
+              </div>
+            </div>
 
-        <div class="inbound-section-title">业务轨迹</div>
-        <div class="inbound-timeline">
-          <div v-for="event in selectedOrder.timeline || []" :key="event.title" class="inbound-event">
-            <div class="p" :class="event.tone" />
-            <div><strong>{{ event.title }}</strong><span>{{ event.meta }}</span></div>
-          </div>
-          <div v-if="!selectedOrder.timeline?.length" class="inbound-empty">暂无业务轨迹</div>
+            <div class="inbound-progress-row">
+              <div class="inbound-progress-head">
+                <span class="name">上架进度</span>
+                <span class="note">{{ formatQty(selectedOrder.putawayQty) }} / {{ formatQty(selectedOrder.planQty) }}</span>
+                <span class="percent">{{ pct(selectedOrder.putawayQty, selectedOrder.planQty) }}%</span>
+              </div>
+              <div class="inbound-detail-track">
+                <div
+                    class="inbound-detail-fill putaway"
+                    :style="{ width: `${pct(selectedOrder.putawayQty, selectedOrder.planQty)}%` }"
+                />
+              </div>
+            </div>
+          </section>
+
+          <section class="inbound-meta-card">
+            <div class="inbound-meta-grid">
+              <div class="inbound-meta-item">
+                <div class="label">创建时间</div>
+                <div class="value">{{ selectedOrder.createdTime }}</div>
+              </div>
+              <div class="inbound-meta-item">
+                <div class="label">更新时间</div>
+                <div class="value">{{ selectedOrder.updatedTime || selectedOrder.createdTime }}</div>
+              </div>
+              <div class="inbound-meta-item remark">
+                <div class="label">备注</div>
+                <div class="value">{{ selectedOrder.remark || '—' }}</div>
+              </div>
+            </div>
+          </section>
+
+          <nav class="inbound-detail-tabs" aria-label="入库单详情标签页">
+            <button
+                v-for="tab in detailTabs"
+                :key="tab.key"
+                class="inbound-detail-tab"
+                :class="{ active: activeDetailTab === tab.key }"
+                @click="activeDetailTab = tab.key"
+            >
+              {{ tab.label }}
+              <span class="inbound-count-badge">{{ tab.count }}</span>
+            </button>
+          </nav>
+
+          <section v-if="activeDetailTab === 'items'" class="inbound-tab-panel">
+            <div class="inbound-mini-table inbound-table-wrap">
+              <table class="inbound-table inbound-detail-table">
+                <thead>
+                <tr>
+                  <th>商品</th>
+                  <th>计划</th>
+                  <th>已收</th>
+                  <th>待收</th>
+                  <th>已上架</th>
+                  <th>待上架</th>
+                  <th>状态</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr v-for="item in selectedOrder.items || []" :key="item.sku">
+                  <td class="inbound-product-cell">
+                    <strong>{{ item.skuName }}</strong>
+                    <span>{{ item.sku }}</span>
+                  </td>
+                  <td class="inbound-qty">{{ formatQty(item.planQty) }}</td>
+                  <td class="inbound-qty">{{ formatQty(item.receivedQty) }}</td>
+                  <td class="inbound-qty" :class="{ pending: pendingReceive(item) > 0, zero: pendingReceive(item) === 0 }">
+                    {{ formatQty(pendingReceive(item)) }}
+                  </td>
+                  <td class="inbound-qty">{{ formatQty(item.putawayQty) }}</td>
+                  <td class="inbound-qty" :class="{ pending: pendingPutaway(item) > 0, zero: pendingPutaway(item) === 0 }">
+                    {{ formatQty(pendingPutaway(item)) }}
+                  </td>
+                  <td>
+                      <span class="inbound-badge" :class="itemStatus(item).className">
+                        {{ itemStatus(item).label }}
+                      </span>
+                  </td>
+                </tr>
+                <tr v-if="!selectedOrder.items?.length">
+                  <td colspan="7" class="inbound-empty">暂无明细数据</td>
+                </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section v-else-if="activeDetailTab === 'receipts'" class="inbound-tab-panel">
+            <div v-if="selectedOrder.receipts?.length" class="inbound-record-list">
+              <article v-for="record in selectedOrder.receipts" :key="record.no" class="inbound-record-card">
+                <div class="inbound-record-head">
+                  <div>
+                    <div class="inbound-record-title">{{ record.no }}</div>
+                    <div class="inbound-record-sub">{{ record.subtitle }}</div>
+                  </div>
+                  <span class="inbound-badge" :class="record.statusClass">{{ record.status }}</span>
+                </div>
+                <div class="inbound-record-grid">
+                  <div class="inbound-record-field"><div class="label">收货人</div><div class="value">{{ record.receiver }}</div></div>
+                  <div class="inbound-record-field"><div class="label">本次收货</div><div class="value">{{ formatQty(record.qty) }}</div></div>
+                  <div class="inbound-record-field"><div class="label">收货时间</div><div class="value">{{ record.time }}</div></div>
+                  <div class="inbound-record-field"><div class="label">备注</div><div class="value">{{ record.remark || '—' }}</div></div>
+                </div>
+              </article>
+            </div>
+            <div v-else class="inbound-empty inbound-empty-panel">暂无收货记录</div>
+          </section>
+
+          <section v-else-if="activeDetailTab === 'putaways'" class="inbound-tab-panel">
+            <div v-if="selectedOrder.putaways?.length" class="inbound-record-list">
+              <article v-for="record in selectedOrder.putaways" :key="record.no" class="inbound-record-card">
+                <div class="inbound-record-head">
+                  <div>
+                    <div class="inbound-record-title">{{ record.no }}</div>
+                    <div class="inbound-record-sub">{{ record.subtitle }}</div>
+                  </div>
+                  <span class="inbound-badge" :class="record.statusClass">{{ record.status }}</span>
+                </div>
+                <div class="inbound-record-grid">
+                  <div class="inbound-record-field"><div class="label">操作人</div><div class="value">{{ record.operator }}</div></div>
+                  <div class="inbound-record-field"><div class="label">{{ record.qtyLabel }}</div><div class="value">{{ formatQty(record.qty) }}</div></div>
+                  <div class="inbound-record-field"><div class="label">完成时间</div><div class="value">{{ record.time }}</div></div>
+                  <div class="inbound-record-field"><div class="label">备注</div><div class="value">{{ record.remark || '—' }}</div></div>
+                </div>
+              </article>
+            </div>
+            <div v-else class="inbound-empty inbound-empty-panel">暂无上架记录</div>
+          </section>
+
+          <section v-else class="inbound-tab-panel">
+            <div v-if="selectedOrder.timeline?.length" class="inbound-timeline">
+              <article v-for="event in selectedOrder.timeline" :key="event.title" class="inbound-event">
+                <span class="p" :class="event.tone" />
+                <div>
+                  <strong>{{ event.title }}</strong>
+                  <span>{{ event.meta }}</span>
+                </div>
+              </article>
+            </div>
+            <div v-else class="inbound-empty inbound-empty-panel">暂无业务轨迹</div>
+          </section>
         </div>
       </aside>
     </div>
@@ -522,9 +840,10 @@ function handleCreate() {
 
 .inbound-table {
   width: 100%;
-  min-width: 1120px;
   border-collapse: collapse;
 }
+
+.inbound-list-table { min-width: 1040px; }
 
 .inbound-table th,
 .inbound-table td {
@@ -533,6 +852,7 @@ function handleCreate() {
   text-align: left;
   vertical-align: middle;
   font-size: 13px;
+  white-space: nowrap;
 }
 
 .inbound-table th {
@@ -540,16 +860,18 @@ function handleCreate() {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: .6px;
-  text-transform: uppercase;
 }
 
 .inbound-table tbody tr:hover { background: #fffdf7; }
 .inbound-order-no { font-weight: 700; }
 .inbound-secondary { margin-top: 4px; color: var(--muted); font-size: 12px; }
+.inbound-qty { font-variant-numeric: tabular-nums; }
 
 .inbound-badge {
   display: inline-flex;
-  padding: 5px 10px;
+  align-items: center;
+  min-height: 26px;
+  padding: 4px 10px;
   border-radius: 999px;
   font-size: 12px;
   font-weight: 650;
@@ -563,13 +885,7 @@ function handleCreate() {
 .inbound-badge.s4 { background: #ffe3ee; }
 .inbound-badge.s5 { background: #dff5e4; color: #166534; }
 .inbound-badge.s6 { background: #f1f1f1; color: #777; }
-
-.inbound-progress { width: 140px; }
-.inbound-track { height: 7px; overflow: hidden; border-radius: 99px; background: #ebe6d6; }
-.inbound-fill { height: 100%; border-radius: 99px; background: var(--teal); }
-.inbound-progress-text { margin-top: 5px; color: var(--muted); font-size: 11px; }
 .inbound-actions { display: flex; gap: 7px; white-space: nowrap; }
-
 .inbound-link-btn {
   padding: 4px 2px;
   border: 0;
@@ -581,8 +897,10 @@ function handleCreate() {
 }
 
 .inbound-link-btn.accent { color: #b1285d; }
+
 .inbound-note { padding: 16px 18px; color: var(--muted); font-size: 12px; }
 .inbound-empty { padding: 22px !important; color: var(--muted); text-align: center !important; }
+.inbound-empty-panel { border: 1px dashed var(--hairline); border-radius: 16px; background: var(--surface-soft); }
 
 .inbound-drawer-mask {
   position: fixed;
@@ -590,40 +908,301 @@ function handleCreate() {
   z-index: 40;
   display: flex;
   justify-content: flex-end;
-  background: rgba(10, 10, 10, .16);
+  background: rgba(10, 10, 10, .22);
+  backdrop-filter: blur(2px);
 }
 
 .inbound-drawer {
-  width: min(720px, 92vw);
-  height: 100%;
-  overflow: auto;
-  padding: 28px;
+  width: min(960px, 96vw);
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   background: var(--canvas);
   box-shadow: -12px 0 40px rgba(0, 0, 0, .08);
 }
 
-.inbound-drawer-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; }
-.inbound-drawer-head h3 { margin: 4px 0 6px; font-size: 30px; font-weight: 560; letter-spacing: -.8px; }
-.inbound-close { width: 38px; height: 38px; border: 1px solid var(--hairline); border-radius: 12px; background: var(--canvas); cursor: pointer; }
+.inbound-drawer-head {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  padding: 24px 28px 20px;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--canvas);
+}
 
-.inbound-detail-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 22px 0; }
-.inbound-detail-card { padding: 16px; border-radius: 16px; background: var(--surface-soft); }
-.inbound-detail-card .k { margin-bottom: 8px; color: var(--muted); font-size: 11px; }
-.inbound-detail-card .v { font-size: 14px; font-weight: 650; }
-.inbound-section-title { margin: 26px 0 12px; font-size: 16px; font-weight: 700; }
-.inbound-mini-table { overflow: hidden; border: 1px solid var(--hairline); border-radius: 16px; }
-.inbound-mini-table .inbound-table { min-width: 650px; }
-.inbound-timeline { display: grid; gap: 12px; }
-.inbound-event { display: grid; grid-template-columns: 14px 1fr; gap: 10px; }
-.inbound-event .p { width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: var(--pink); }
+.inbound-drawer-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.inbound-drawer-head h3 {
+  margin: 4px 0 0;
+  font-size: 30px;
+  font-weight: 560;
+  letter-spacing: -.8px;
+}
+
+.inbound-close {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  background: var(--canvas);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.inbound-drawer-body {
+  overflow-y: auto;
+  padding: 22px 28px 34px;
+}
+
+.inbound-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.inbound-metric-card {
+  padding: 18px;
+  border: 1px solid var(--hairline);
+  border-radius: 16px;
+  background: var(--canvas);
+}
+
+.inbound-metric-card .label,
+.inbound-meta-item .label,
+.inbound-record-field .label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.inbound-metric-card .value {
+  margin-top: 8px;
+  font-size: 26px;
+  font-weight: 650;
+  letter-spacing: -.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.inbound-metric-card .hint {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.inbound-progress-panel {
+  padding: 18px;
+  margin-bottom: 14px;
+  border: 1px solid var(--hairline);
+  border-radius: 16px;
+  background: var(--canvas);
+}
+
+.inbound-progress-row + .inbound-progress-row { margin-top: 18px; }
+
+.inbound-progress-head {
+  display: grid;
+  grid-template-columns: 92px 1fr auto;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 9px;
+  font-size: 13px;
+}
+
+.inbound-progress-head .name { font-weight: 700; }
+.inbound-progress-head .note { color: var(--muted); }
+.inbound-progress-head .percent { font-weight: 700; }
+
+.inbound-detail-track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-card);
+}
+
+.inbound-detail-fill {
+  height: 100%;
+  border-radius: inherit;
+}
+
+.inbound-detail-fill.receive { background: var(--lavender); }
+.inbound-detail-fill.putaway { background: var(--teal); }
+
+.inbound-meta-card {
+  padding: 18px;
+  margin-bottom: 22px;
+  border: 1px solid var(--hairline);
+  border-radius: 16px;
+  background: var(--canvas);
+}
+
+.inbound-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px 20px;
+}
+
+.inbound-meta-item .value,
+.inbound-record-field .value {
+  margin-top: 6px;
+  font-size: 14px;
+  font-weight: 650;
+  word-break: break-word;
+}
+
+.inbound-meta-item.remark { grid-column: 1 / -1; }
+
+.inbound-detail-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.inbound-detail-tab {
+  position: relative;
+  padding: 12px 16px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.inbound-detail-tab.active { color: var(--ink); }
+
+.inbound-detail-tab.active::after {
+  content: '';
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: -1px;
+  height: 3px;
+  border-radius: 999px 999px 0 0;
+  background: var(--pink);
+}
+
+.inbound-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  margin-left: 5px;
+  border-radius: 999px;
+  background: var(--surface-card);
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.inbound-detail-tab.active .inbound-count-badge {
+  background: #ffe3ee;
+  color: #b1285d;
+}
+
+.inbound-tab-panel { min-height: 180px; }
+
+.inbound-mini-table {
+  overflow: hidden;
+  border: 1px solid var(--hairline);
+  border-radius: 16px;
+  background: var(--canvas);
+}
+
+.inbound-detail-table { min-width: 820px; }
+
+.inbound-product-cell strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.inbound-product-cell span { color: var(--muted); font-size: 12px; }
+.inbound-qty.pending { color: #a16207; font-weight: 700; }
+.inbound-qty.zero { color: #aaa; }
+
+.inbound-record-list { display: grid; gap: 12px; }
+
+.inbound-record-card {
+  padding: 18px;
+  border: 1px solid var(--hairline);
+  border-radius: 16px;
+  background: var(--canvas);
+}
+
+.inbound-record-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.inbound-record-title { font-size: 16px; font-weight: 750; }
+.inbound-record-sub { margin-top: 5px; color: var(--muted); font-size: 13px; }
+
+.inbound-record-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.inbound-timeline {
+  position: relative;
+  padding-left: 22px;
+}
+
+.inbound-timeline::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 8px;
+  bottom: 12px;
+  width: 2px;
+  background: var(--hairline);
+}
+
+.inbound-event {
+  position: relative;
+  display: block;
+  padding: 0 0 24px 18px;
+}
+
+.inbound-event:last-child { padding-bottom: 0; }
+
+.inbound-event .p {
+  position: absolute;
+  left: -22px;
+  top: 3px;
+  width: 14px;
+  height: 14px;
+  border: 3px solid var(--canvas);
+  border-radius: 50%;
+  background: var(--pink);
+  box-shadow: 0 0 0 1px var(--hairline);
+}
+
 .inbound-event .p.lavender { background: var(--lavender); }
 .inbound-event .p.ochre { background: var(--ochre); }
 .inbound-event strong { font-size: 13px; }
-.inbound-event span { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; }
+.inbound-event span { display: block; margin-top: 5px; color: var(--muted); font-size: 12px; line-height: 1.6; }
 
 @media (max-width: 1100px) {
   .inbound-stats { grid-template-columns: repeat(2, 1fr); }
   .inbound-filters { grid-template-columns: 1fr 1fr; }
+  .inbound-meta-grid { grid-template-columns: 1fr 1fr; }
 }
 
 @media (max-width: 760px) {
@@ -631,11 +1210,16 @@ function handleCreate() {
   .inbound-page-head { align-items: flex-start; flex-direction: column; }
   .inbound-page-head h2 { font-size: 34px; }
   .inbound-stats,
-  .inbound-filters { grid-template-columns: 1fr; }
-  .inbound-detail-grid { grid-template-columns: 1fr 1fr; }
+  .inbound-filters,
+  .inbound-summary-grid { grid-template-columns: 1fr; }
+  .inbound-drawer-head,
+  .inbound-drawer-body { padding-left: 18px; padding-right: 18px; }
+  .inbound-record-grid { grid-template-columns: 1fr 1fr; }
+  .inbound-progress-head { grid-template-columns: 82px 1fr auto; }
 }
 
 @media (max-width: 520px) {
-  .inbound-detail-grid { grid-template-columns: 1fr; }
+  .inbound-meta-grid,
+  .inbound-record-grid { grid-template-columns: 1fr; }
 }
 </style>

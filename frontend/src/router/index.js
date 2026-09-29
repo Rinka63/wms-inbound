@@ -5,8 +5,8 @@ import Login from '../views/Login.vue'
 import Layout from '../views/Layout.vue'
 import DashBoard from '../views/DashBoard.vue'
 import InboundOrder from '../views/InboundOrder.vue'
-import Receipt from '../views/Receipt.vue'
-import Putaway from "../views/Putaway.vue";
+import ReceiptOrder from '../views/ReceiptOrder.vue'
+import PutawayOrder from "../views/PutawayOrder.vue";
 
 const router = createRouter({
     history: createWebHashHistory(),
@@ -37,12 +37,12 @@ const router = createRouter({
                 },
                 {
                     path: 'inbound/receipt',
-                    component: Receipt,
+                    component: ReceiptOrder,
                     meta: {title: '收货管理'}
                 },
                 {
                     path: 'inbound/putaway',
-                    component: Putaway,
+                    component: PutawayOrder,
                     meta: {title: '上架管理'}
                 }
             ],

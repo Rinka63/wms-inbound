@@ -39,17 +39,12 @@ public class InboundOrderItem {
     private BigDecimal putawayQty;
 
     /**
-     * 乐观锁版本号
-     */
-    private Integer version;
-
-    /**
      * 创建时间
      */
-    private LocalDateTime createdTime;
+    private LocalDateTime gmtCreate;
 
     /**
      * 更新时间
      */
-    private LocalDateTime updatedTime;
+    private LocalDateTime gmtModified;
 }

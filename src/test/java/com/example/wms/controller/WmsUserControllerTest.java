@@ -3,10 +3,12 @@ package com.example.wms.controller;
 import com.example.wms.dto.CreateWmsUserRequest;
 import com.example.wms.dto.UpdateWmsUserRequest;
 import com.example.wms.dto.WmsUserResponse;
+import com.example.wms.security.JwtUtil;
 import com.example.wms.service.WmsUserService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -30,6 +32,16 @@ class WmsUserControllerTest {
 
     @MockitoBean
     private WmsUserService wmsUserService;
+
+    /**
+     * WebMvcConfig 会注册 JwtInterceptor，后者依赖 JwtUtil；
+     * @WebMvcTest 不加载 @Component，这里补上以便上下文能启动。
+     */
+    @MockitoBean
+    private JwtUtil jwtUtil;
+
+    @MockitoBean
+    private StringRedisTemplate stringRedisTemplate;
 
     @Test
     void createUser_shouldReturnUserId() throws Exception {
@@ -77,7 +89,7 @@ class WmsUserControllerTest {
         WmsUserResponse response = createResponse();
         when(wmsUserService.getUserById(1L)).thenReturn(response);
 
-        mockMvc.perform(get("/users/{id}", 1L))
+        mockMvc.perform(get("/users/userId/{id}", 1L))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.username").value("zhangsan"))

@@ -41,7 +41,7 @@ public interface WmsUserMapper {
      */
     int updateStatus(
             @Param("id") Long id,
-            @Param("status") Integer status
+            @Param("userStatus") Integer userStatus
     );
 
     /**

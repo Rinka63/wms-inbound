@@ -34,22 +34,12 @@ public class ReceiptOrderItem {
     private BigDecimal receivedQty;
 
     /**
-     * 合格数量
-     */
-    private BigDecimal qualifiedQty;
-
-    /**
-     * 破损数量
-     */
-    private BigDecimal damagedQty;
-
-    /**
      * 创建时间
      */
-    private LocalDateTime createdTime;
+    private LocalDateTime gmtCreate;
 
     /**
      * 更新时间
      */
-    private LocalDateTime updatedTime;
+    private LocalDateTime gmtModified;
 }
