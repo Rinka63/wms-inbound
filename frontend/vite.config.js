@@ -14,7 +14,11 @@ export default defineConfig({
       '/dashboard':{
         target: 'http://localhost:8080',
         changeOrigin: true,
-      }
+      },
+      '/inbound': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
     },
   },
 

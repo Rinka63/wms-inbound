@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.example.wms.mapper.InboundOrderMapper">
+
+    <!--
+        入库单列表返回字段：
+        id
+        inboundOrderNo
+        warehouseId
+        warehouseName
+        inboundType
+        status
+        planQty
+        receivedQty
+        putawayQty
+        creatorName
+        createdTime
+        updatedTime
+        remark
+    -->
+    <select id="selectInboundOrderList"
+            resultType="com.example.wms.dto.InboundOrderResponse">
+
+        SELECT
+        io.id,
+        io.inbound_order_no AS inboundOrderNo,
+        io.warehouse_id AS warehouseId,
+        w.warehouse_name AS warehouseName,
+        io.inbound_type AS inboundType,
+        io.inbound_status AS status,
+
+        COALESCE(item_summary.plan_qty, 0) AS planQty,
+        COALESCE(item_summary.received_qty, 0) AS receivedQty,
+        COALESCE(item_summary.putaway_qty, 0) AS putawayQty,
+
+        u.real_name AS creatorName,
+
+        io.gmt_create AS createdTime,
+        io.gmt_modified AS updatedTime,
+        io.remark
+
+        FROM inbound_order io
+
+        LEFT JOIN warehouse w
+        ON w.id = io.warehouse_id
+
+        LEFT JOIN wms_user u
+        ON u.id = io.created_by
+
+        LEFT JOIN (
+        SELECT
+        inbound_order_id,
+        SUM(plan_qty) AS plan_qty,
+        SUM(received_qty) AS received_qty,
+        SUM(putaway_qty) AS putaway_qty
+        FROM inbound_order_item
+        GROUP BY inbound_order_id
+        ) item_summary
+        ON item_summary.inbound_order_id = io.id
+
+        ORDER BY io.gmt_create DESC, io.id DESC
+
+    </select>
+
+</mapper>

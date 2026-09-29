@@ -46,161 +46,30 @@ const statusTabs = [
   { label: '已完成', value: 5 },
 ]
 
-const orders = ref([
-  {
-    id: 1,
-    inboundOrderNo: 'IN202609240001',
-    warehouseId: 1,
-    warehouseName: '华东一号仓',
-    inboundType: 1,
-    status: 2,
-    planQty: 1200,
-    receivedQty: 720,
-    putawayQty: 480,
-    creatorName: '陈小北',
-    createdTime: '2026-09-24 09:18',
-    updatedTime: '2026-09-24 13:05',
-    remark: '供应商分两批到货，本次先完成第一批收货与部分上架。',
-    items: [
-      {
-        sku: 'SKU-APPLE-001',
-        skuName: '苹果礼盒 12 枚',
-        planQty: 600,
-        receivedQty: 600,
-        putawayQty: 480,
-      },
-      {
-        sku: 'SKU-PEAR-002',
-        skuName: '秋月梨礼盒',
-        planQty: 600,
-        receivedQty: 120,
-        putawayQty: 0,
-      },
-    ],
-    receipts: [
-      {
-        no: 'RC202609240008',
-        subtitle: '第一批到货收货单',
-        status: '已完成',
-        statusClass: 's5',
-        receiver: '王海',
-        qty: 720,
-        time: '2026-09-24 11:36',
-        remark: '供应商第一批到货',
-      },
-      {
-        no: 'RC202609250003',
-        subtitle: '第二批收货任务',
-        status: '草稿',
-        statusClass: 's0',
-        receiver: '李敏',
-        qty: 0,
-        time: '—',
-        remark: '等待第二批车辆到仓',
-      },
-    ],
-    putaways: [
-      {
-        no: 'PA202609240003',
-        subtitle: '来源收货单：RC202609240008',
-        status: '已完成',
-        statusClass: 's5',
-        operator: '赵一',
-        qtyLabel: '上架数量',
-        qty: 480,
-        time: '2026-09-24 13:05',
-        remark: '苹果礼盒完成首批上架',
-      },
-      {
-        no: 'PA202609240009',
-        subtitle: '来源收货单：RC202609240008',
-        status: '待上架',
-        statusClass: 's4',
-        operator: '陈航',
-        qtyLabel: '计划处理',
-        qty: 240,
-        time: '—',
-        remark: '等待分配目标库位',
-      },
-    ],
-    timeline: [
-      { title: '创建入库单', meta: '陈小北 · 2026-09-24 09:18', tone: 'pink' },
-      { title: '入库单进入待收货状态', meta: '陈小北 · 2026-09-24 09:26', tone: 'pink' },
-      { title: '完成收货 · RC202609240008', meta: '本次收货 720.000 · 王海 · 2026-09-24 11:36', tone: 'lavender' },
-      { title: '完成上架 · PA202609240003', meta: '本次上架 480.000 · 赵一 · 2026-09-24 13:05', tone: 'ochre' },
-    ],
-  },
-  {
-    id: 2,
-    inboundOrderNo: 'IN202609240002',
-    warehouseId: 1,
-    warehouseName: '华东一号仓',
-    inboundType: 1,
-    status: 1,
-    planQty: 860,
-    receivedQty: 0,
-    putawayQty: 0,
-    creatorName: '李敏',
-    createdTime: '2026-09-24 10:02',
-    remark: '',
-  },
-  {
-    id: 3,
-    inboundOrderNo: 'IN202609230018',
-    warehouseId: 2,
-    warehouseName: '华南中心仓',
-    inboundType: 2,
-    status: 3,
-    planQty: 32,
-    receivedQty: 32,
-    putawayQty: 0,
-    creatorName: '周宁',
-    createdTime: '2026-09-23 16:40',
-    remark: '',
-  },
-  {
-    id: 4,
-    inboundOrderNo: 'IN202609230011',
-    warehouseId: 1,
-    warehouseName: '华东一号仓',
-    inboundType: 3,
-    status: 4,
-    planQty: 2400,
-    receivedQty: 2400,
-    putawayQty: 1800,
-    creatorName: '陈小北',
-    createdTime: '2026-09-23 11:25',
-    remark: '',
-  },
-  {
-    id: 5,
-    inboundOrderNo: 'IN202609220009',
-    warehouseId: 2,
-    warehouseName: '华南中心仓',
-    inboundType: 1,
-    status: 5,
-    planQty: 510,
-    receivedQty: 510,
-    putawayQty: 510,
-    creatorName: '许晓',
-    createdTime: '2026-09-22 14:08',
-    remark: '',
-  },
-  {
-    id: 6,
-    inboundOrderNo: 'IN202609220004',
-    warehouseId: 1,
-    warehouseName: '华东一号仓',
-    inboundType: 4,
-    status: 0,
-    planQty: 120,
-    receivedQty: 0,
-    putawayQty: 0,
-    creatorName: '李敏',
-    createdTime: '2026-09-22 09:31',
-    remark: '',
-  },
-])
+const orders = ref([])
+const ordersLoading = ref(false)
+const ordersError = ref('')
+
+async function loadOrders() {
+  ordersLoading.value = true
+  ordersError.value = ''
+
+  try {
+    const response = await fetch('/inbound/orders')
+
+    if (!response.ok) {
+      throw new Error('获取入库单数据失败')
+    }
+
+    orders.value = await response.json()
+
+  } catch (error) {
+    console.error(error)
+    ordersError.value = error.message || '获取入库单数据失败'
+  } finally {
+    ordersLoading.value = false
+  }
+}
 
 const warehouseOptions = computed(() =>
     [...new Set(orders.value.map((item) => item.warehouseName))]
@@ -347,8 +216,14 @@ function handleKeydown(event) {
   }
 }
 
-onMounted(() => window.addEventListener('keydown', handleKeydown))
-onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
+onMounted(() => {
+  window.addEventListener('keydown', handleKeydown)
+  loadOrders()
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleKeydown)
+})
 </script>
 
 <template>
@@ -357,7 +232,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
       <div>
         <div class="inbound-kicker">INBOUND ORDERS</div>
         <h2>入库单管理</h2>
-        <p>管理计划入库、收货与上架进度；从一张单据追踪到库存落账。</p>
+<!--        <p>管理计划入库、收货与上架进度；从一张单据追踪到库存落账。</p>-->
       </div>
       <button class="inbound-btn primary" @click="handleCreate">＋ 新建入库单</button>
     </section>

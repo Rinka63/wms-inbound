@@ -20,6 +20,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .excludePathPatterns(
                         "/users/**",
                         "/dashboard/**",
+                        "/inbound/**",
                         "/error"
                 );
     }
