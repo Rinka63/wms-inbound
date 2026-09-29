@@ -16,7 +16,7 @@ import { useUserStore } from '../stores/user'
  */
 const STORAGE_KEY = 'wms-inbound-practice-v1';
 const STATUS = {
-  receipt: {0: '未完成', 1: '已完成', 2: '已取消'},
+  receipt: {0: '草稿', 1: '已完成', 2: '已取消'},
   putaway: {0: '待上架', 1: '上架中', 2: '已完成', 3: '已取消'}
 };
 function units(value) {
@@ -472,12 +472,7 @@ const {
       </div>
       <button class="btn primary" type="button" @click="openEditor()">＋ 新建{{ word }}单</button>
     </section>
-
-    <section class="summary" aria-label="全部单据统计">
-      <article v-for="s in stats" :key="s.title" class="summary-card">
-        <small>{{ s.title }}</small><strong>{{ s.value }}</strong><div class="summary-note">{{ s.meta }}</div>
-      </article>
-    </section>
+    
 
     <section class="panel">
       <div class="filters">

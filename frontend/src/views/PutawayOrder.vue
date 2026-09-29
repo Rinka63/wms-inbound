@@ -473,12 +473,6 @@ const {
       <button class="btn primary" type="button" @click="openEditor()">＋ 新建{{ word }}单</button>
     </section>
 
-    <section class="summary" aria-label="全部单据统计">
-      <article v-for="s in stats" :key="s.title" class="summary-card">
-        <small>{{ s.title }}</small><strong>{{ s.value }}</strong><div class="summary-note">{{ s.meta }}</div>
-      </article>
-    </section>
-
     <section class="panel">
       <div class="filters">
         <div class="field">
