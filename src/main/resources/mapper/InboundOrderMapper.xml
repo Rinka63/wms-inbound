@@ -65,4 +65,164 @@
 
     </select>
 
+    <select id="selectInboundOrderDetail"
+            resultType="com.example.wms.dto.InboundOrderDetailResponse">
+
+        SELECT
+        io.id,
+        io.inbound_order_no AS inboundOrderNo,
+
+        io.warehouse_id AS warehouseId,
+        w.warehouse_name AS warehouseName,
+
+        io.inbound_type AS inboundType,
+        io.inbound_status AS status,
+
+        COALESCE(item_summary.plan_qty, 0) AS planQty,
+        COALESCE(item_summary.received_qty, 0) AS receivedQty,
+        COALESCE(item_summary.putaway_qty, 0) AS putawayQty,
+
+        io.created_by AS createdBy,
+        u.real_name AS creatorName,
+
+        io.gmt_create AS createdTime,
+        io.gmt_modified AS updatedTime,
+
+        io.remark
+
+        FROM inbound_order io
+
+        LEFT JOIN warehouse w
+        ON w.id = io.warehouse_id
+
+        LEFT JOIN wms_user u
+        ON u.id = io.created_by
+
+        LEFT JOIN (
+        SELECT
+        inbound_order_id,
+        SUM(plan_qty) AS plan_qty,
+        SUM(received_qty) AS received_qty,
+        SUM(putaway_qty) AS putaway_qty
+        FROM inbound_order_item
+        WHERE inbound_order_id = #{id}
+        GROUP BY inbound_order_id
+        ) item_summary
+        ON item_summary.inbound_order_id = io.id
+
+        WHERE io.id = #{id}
+
+    </select>
+
+    <select id="selectInboundOrderItems"
+            resultType="com.example.wms.dto.InboundOrderDetailResponse$Item">
+
+        SELECT
+        i.id,
+        i.inbound_order_id AS inboundOrderId,
+        i.sku_id AS skuId,
+        i.plan_qty AS planQty,
+        i.received_qty AS receivedQty,
+        i.putaway_qty AS putawayQty
+
+        FROM inbound_order_item i
+
+        WHERE i.inbound_order_id = #{inboundOrderId}
+
+        ORDER BY i.id ASC
+
+    </select>
+
+    <select id="selectReceiptRecords"
+            resultType="com.example.wms.dto.InboundOrderDetailResponse$Receipt">
+
+        SELECT
+        ro.id,
+
+        ro.receipt_order_no AS no,
+
+        ro.receipt_status AS status,
+
+        ro.receiver_id AS receiverId,
+
+        u.real_name AS receiver,
+
+        COALESCE(item_summary.received_qty, 0) AS qty,
+
+        ro.received_time AS time,
+
+        ro.gmt_create AS createdTime,
+
+        ro.remark
+
+        FROM receipt_order ro
+
+        LEFT JOIN wms_user u
+        ON u.id = ro.receiver_id
+
+        LEFT JOIN (
+        SELECT
+        receipt_order_id,
+        SUM(received_qty) AS received_qty
+        FROM receipt_order_item
+        GROUP BY receipt_order_id
+        ) item_summary
+        ON item_summary.receipt_order_id = ro.id
+
+        WHERE ro.inbound_order_id = #{inboundOrderId}
+
+        ORDER BY
+        COALESCE(ro.received_time, ro.gmt_create) DESC,
+        ro.id DESC
+
+    </select>
+
+    <select id="selectPutawayRecords"
+            resultType="com.example.wms.dto.InboundOrderDetailResponse$Putaway">
+
+        SELECT
+        po.id,
+
+        po.putaway_order_no AS no,
+
+        po.putaway_status AS status,
+
+        po.operator_id AS operatorId,
+
+        u.real_name AS operator,
+
+        COALESCE(item_summary.putaway_qty, 0) AS qty,
+
+        po.putaway_time AS time,
+
+        po.gmt_create AS createdTime,
+
+        po.remark
+
+        FROM putaway_order po
+
+        LEFT JOIN wms_user u
+        ON u.id = po.operator_id
+
+        LEFT JOIN (
+        SELECT
+        putaway_order_id,
+        SUM(putaway_qty) AS putaway_qty
+
+        FROM putaway_order_item
+
+        GROUP BY putaway_order_id
+        ) item_summary
+        ON item_summary.putaway_order_id = po.id
+
+        WHERE po.inbound_order_id = #{inboundOrderId}
+
+        ORDER BY
+        COALESCE(po.putaway_time, po.gmt_create) DESC,
+        po.id DESC
+
+    </select>
+
+
+
 </mapper>
