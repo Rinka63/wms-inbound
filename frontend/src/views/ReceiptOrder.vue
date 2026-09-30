@@ -18,6 +18,12 @@ const keyword = ref('')
 const warehouse = ref('')
 const range = ref('all')
 const status = ref('')
+
+// 页面展示文案：底层状态值保持不变，status=0 统一显示为“未完成”。
+const DISPLAY_RECEIPT_STATUS = {
+  ...RECEIPT_STATUS,
+  0: '未完成',
+}
 const expanded = ref(null)
 const form = ref(null)
 const editor = ref(null)
@@ -48,7 +54,7 @@ const filtered = computed(() => {
 })
 
 const stats = computed(() => [
-  { title: '未完成草稿', value: rows.value.filter(row => row.status === 0).length, meta: '尚未增加累计收货' },
+  { title: '未完成收货单', value: rows.value.filter(row => row.status === 0).length, meta: '尚未增加累计收货' },
   { title: '已完成收货单', value: rows.value.filter(row => row.status === 1).length, meta: '已确认并更新累计收货' },
   { title: '已取消收货单', value: rows.value.filter(row => row.status === 2).length, meta: '仅保留历史记录' },
 ])
@@ -149,7 +155,7 @@ function saveEditor(confirm) {
     form.value = null
     expanded.value = row.id
     refresh()
-    notify(confirm ? '收货单已确认；累计收货已更新。' : '收货草稿已保存，未入账。')
+    notify(confirm ? '收货单已确认；累计收货已更新。' : '收货单已保存为未完成，未入账。')
   } catch (error) {
     formError.value = error.message
   } finally {
@@ -257,7 +263,7 @@ onBeforeUnmount(() => {
       <div class="toolbar">
         <div class="tabs">
           <button class="tab" :class="{ active: status === '' }" @click="status = ''">全部</button>
-          <button v-for="(label, value) in RECEIPT_STATUS" :key="value" class="tab" :class="{ active: status === String(value) }" @click="status = String(value)">{{ label }}</button>
+          <button v-for="(label, value) in DISPLAY_RECEIPT_STATUS" :key="value" class="tab" :class="{ active: status === String(value) }" @click="status = String(value)">{{ label }}</button>
         </div>
         <div class="count">共 {{ filtered.length }} 条</div>
       </div>
@@ -270,7 +276,7 @@ onBeforeUnmount(() => {
             <tr class="main-row" :class="{ 'is-expanded': expanded === row.id }">
               <td><button class="doc-btn" type="button" :aria-expanded="expanded === row.id" @click="expanded = expanded === row.id ? null : row.id"><span class="arrow">{{ expanded === row.id ? '▾' : '▸' }}</span>{{ row.receiptOrderNo }}</button></td>
               <td><b>{{ row.inboundOrderNo }}</b></td><td class="nowrap">{{ row.warehouseName }}</td>
-              <td><span class="badge" :class="badgeClass(row.status)">{{ RECEIPT_STATUS[row.status] }}</span></td>
+              <td><span class="badge" :class="badgeClass(row.status)">{{ DISPLAY_RECEIPT_STATUS[row.status] }}</span></td>
               <td>{{ row.skuCount }}</td><td class="mono"><b>{{ formatQuantity(row.totalQty) }}</b><div v-if="row.status === 0" class="sub">录入量 · 未入账</div></td>
               <td>{{ row.receiverName || '—' }}</td>
               <td><div class="nowrap">{{ row.createdTime || '—' }}</div><div class="sub nowrap">{{ row.receivedTime || '尚未完成' }}</div></td>
@@ -318,7 +324,7 @@ onBeforeUnmount(() => {
           </tbody>
         </table>
       </div>
-      <div class="note">点击收货单号展开本次明细。草稿数量不会计入入库单累计已收货数量。</div>
+      <div class="note">点击收货单号展开本次明细。未完成收货单的数量不会计入入库单累计已收货数量。</div>
     </section>
 
     <div class="demo-bar"><span>当前仍使用 localStorage 作为演示数据层；本页只处理收货单。</span><button class="link" type="button" @click="resetDemo">重置演示数据</button></div>
@@ -329,7 +335,7 @@ onBeforeUnmount(() => {
         <div class="dialog-head"><div><div class="kicker">RECEIPT OPERATION</div><h3 id="receipt-operation-title">{{ form.id ? '继续' : '新建' }}收货单</h3><p>{{ form.documentNo }} · 一张收货单只记录本次批次</p></div><button type="button" class="close" aria-label="关闭办理窗口" @click="closeEditor">×</button></div>
         <div class="dialog-body">
           <div class="form-grid"><div class="field"><label for="receipt-source">来源入库单</label><select id="receipt-source" :value="form.sourceId" :disabled="form.lockSource" @change="changeSource"><option v-for="item in sourceOptions" :key="item.id" :value="item.id">{{ item.label }}</option></select></div><div class="field"><label>仓库（由来源决定）</label><div class="readonly">{{ form.warehouseName }}</div></div></div>
-          <div class="callout">填写本次实际收货数量。保存草稿不增加已收货数量；确认后本单完成，剩余到货另建收货单。空白或 0 表示本次不处理该行。</div>
+          <div class="callout">填写本次实际收货数量。保存为未完成状态不增加已收货数量；确认后本单完成，剩余到货另建收货单。空白或 0 表示本次不处理该行。</div>
           <div class="table-wrap"><table class="edit-table"><thead><tr><th>SKU / 商品名称</th><th>计划量</th><th>累计已收</th><th>当前可收货</th><th>本次收货</th></tr></thead><tbody><tr v-for="item in form.items" :key="item.sourceItemId"><td><b>{{ item.sku }}</b><div class="sub">{{ item.skuName }}</div></td><td class="mono">{{ formatQuantity(item.sourceQty) }}</td><td class="mono">{{ formatQuantity(item.priorQty) }}</td><td class="mono">{{ formatQuantity(item.maxQty) }}</td><td><input v-model="item.qty" :aria-label="item.sku + ' 本次收货数量'" type="text" inputmode="decimal" autocomplete="off" placeholder="0.000"></td></tr><tr v-if="!form.items.length"><td class="empty" colspan="5">来源已无剩余数量，请重新选择。</td></tr></tbody></table></div>
           <div class="fill-row"><span>数量精度为 0.001；提交时重新校验可用数量。</span><button class="link" type="button" @click="fillRemaining">填入全部剩余</button></div>
           <div class="field"><label for="receipt-remark">备注（选填，最多 500 字）</label><textarea id="receipt-remark" v-model="form.remark" rows="2" maxlength="500" placeholder="补充本次收货说明"></textarea></div>
