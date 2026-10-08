@@ -739,20 +739,23 @@ onBeforeUnmount(() => {
       </article>
     </section>
 
-    <section class="inbound-panel">
-      <div class="inbound-filters">
-        <div class="inbound-field">
-          <label>入库单号</label>
+    <section class="panel">
+      <div class="filters">
+        <div class="field">
+          <label for="inbound-keyword">单据搜索</label>
           <input
+              id="inbound-keyword"
               v-model.trim="keyword"
-              class="inbound-input"
-              placeholder="例如 IB202609240001"
-          />
+              placeholder="入库单号"
+          >
         </div>
 
-        <div class="inbound-field">
-          <label>仓库</label>
-          <select v-model="warehouse">
+        <div class="field">
+          <label for="inbound-warehouse">仓库</label>
+          <select
+              id="inbound-warehouse"
+              v-model="warehouse"
+          >
             <option value="">全部仓库</option>
             <option
                 v-for="item in warehouseOptions"
@@ -764,29 +767,22 @@ onBeforeUnmount(() => {
           </select>
         </div>
 
-        <!--        <div class="inbound-field">-->
-        <!--          <label>入库类型</label>-->
-        <!--          <select v-model="inboundType">-->
-        <!--            <option value="">全部类型</option>-->
-        <!--            <option :value="1">采购入库</option>-->
-        <!--            <option :value="2">退货入库</option>-->
-        <!--            <option :value="3">调拨入库</option>-->
-        <!--            <option :value="4">其他入库</option>-->
-        <!--          </select>-->
-        <!--        </div>-->
-
-        <div class="inbound-field">
-          <label>创建时间</label>
-          <select v-model="createdRange">
-            <option value="30d">近 30 天</option>
-            <option value="7d">近 7 天</option>
+        <div class="field">
+          <label for="inbound-range">创建时间</label>
+          <select
+              id="inbound-range"
+              v-model="createdRange"
+          >
+            <option value="all">全部时间</option>
             <option value="today">今天</option>
-            <option value="all">全部</option>
+            <option value="7d">近 7 天</option>
+            <option value="30d">近 30 天</option>
           </select>
         </div>
 
         <button
-            class="inbound-btn"
+            class="btn"
+            type="button"
             @click="resetFilters"
         >
           重置
@@ -800,6 +796,7 @@ onBeforeUnmount(() => {
               :key="tab.label"
               class="inbound-tab"
               :class="{ active: statusFilter === tab.value }"
+              type="button"
               @click="statusFilter = tab.value"
           >
             {{ tab.label }}
@@ -810,6 +807,8 @@ onBeforeUnmount(() => {
           共 <b>{{ orders.length }}</b> 条
         </div>
       </div>
+
+      <!-- 后面的 inbound-table-wrap 保持原样 -->
 
       <div class="inbound-table-wrap">
         <table class="inbound-table inbound-list-table">
@@ -1742,46 +1741,69 @@ onBeforeUnmount(() => {
   opacity: .72;
 }
 
-.inbound-panel {
+.inbound-page .panel {
   overflow: hidden;
   border: 1px solid var(--hairline);
   border-radius: 16px;
   background: var(--canvas);
 }
 
-.inbound-filters {
+.inbound-page .filters {
   display: grid;
-  grid-template-columns: 1.4fr 1fr 1fr 1fr auto;
+  grid-template-columns: 1.8fr 1fr 1fr auto;
   gap: 12px;
-  align-items: end;
   padding: 18px;
+  align-items: end;
 }
 
-.inbound-field label {
+.inbound-page .field {
+  min-width: 0;
+}
+
+.inbound-page .field label {
   display: block;
-  margin: 0 0 7px 2px;
+  margin-bottom: 7px;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 600;
 }
 
-.inbound-input,
-.inbound-field select {
+.inbound-page .filters input,
+.inbound-page .filters select {
   width: 100%;
-  height: 44px;
-  padding: 0 13px;
-  outline: none;
+  padding: 11px 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: var(--canvas);
+  color: var(--ink);
+  outline: 0;
+  font-size: 13px;
+}
+
+.inbound-page .filters input:focus,
+.inbound-page .filters select:focus {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 2px #0a0a0a08;
+}
+
+.inbound-page .btn {
+  min-height: 42px;
+  padding: 0 17px;
   border: 1px solid var(--hairline);
   border-radius: 12px;
   background: var(--canvas);
   color: var(--ink);
-  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+  cursor: pointer;
 }
 
-.inbound-input:focus,
-.inbound-field select:focus {
-  border-color: var(--ink);
+.inbound-page .btn:hover {
+  filter: brightness(.96);
 }
+
+
 
 .inbound-toolbar {
   display: flex;
