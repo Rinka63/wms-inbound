@@ -373,9 +373,9 @@ onBeforeUnmount(() => {
       <div>
         <div class="kicker">PUTAWAY</div>
         <h2>上架单管理</h2>
-        <p>
-          将已完成收货的商品放入目标库位；暂存不入账，确认后本批库存一次性增加。
-        </p>
+<!--        <p>-->
+<!--          将已完成收货的商品放入目标库位；暂存不入账，确认后本批库存一次性增加。-->
+<!--        </p>-->
       </div>
 
       <button
@@ -742,7 +742,7 @@ onBeforeUnmount(() => {
           <div class="form-grid">
             <div class="field">
               <label for="putaway-source">
-                来源收货单（仅已完成）
+                来源收货单
               </label>
 
               <select
@@ -769,9 +769,9 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
-          <div class="callout">
-            每个 SKU 本单选择一个目标库位。暂存不增加库存；确认后本批整体入账，剩余数量另建上架单。空白或 0 表示本次不处理该行。
-          </div>
+<!--          <div class="callout">-->
+<!--            每个 SKU 本单选择一个目标库位。暂存不增加库存；确认后本批整体入账，剩余数量另建上架单。空白或 0 表示本次不处理该行。-->
+<!--          </div>-->
 
           <div class="table-wrap">
             <table class="edit-table">
@@ -903,17 +903,17 @@ onBeforeUnmount(() => {
                 :disabled="busy"
                 @click="closeEditor"
             >
-              返回列表
+              返回
             </button>
 
-            <button
-                class="btn"
-                type="button"
-                :disabled="busy"
-                @click="saveEditor(false)"
-            >
-              暂存进度
-            </button>
+<!--            <button-->
+<!--                class="btn"-->
+<!--                type="button"-->
+<!--                :disabled="busy"-->
+<!--                @click="saveEditor(false)"-->
+<!--            >-->
+<!--              暂存进度-->
+<!--            </button>-->
 
             <button
                 class="btn primary"

@@ -1,6 +1,6 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { onBeforeRouteLeave, useRoute } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { useUserStore } from '../stores/user'
 import {
   STORAGE_KEY,
@@ -72,7 +72,6 @@ const formError = ref('')
 const busy = ref(false)
 
 let service
-let original = ''
 let timer
 
 /**
@@ -131,28 +130,6 @@ const filtered = computed(() => {
       matchesDateRange(row.createdTime, dateRange)
   ))
 })
-
-/**
- * 暂时保留统计数据结构。
- * 当前页面没有展示 summary，后续需要时可以直接拆成公共统计卡片。
- */
-const summaryItems = computed(() => [
-  {
-    title: '未完成收货单',
-    value: rows.value.filter(row => row.status === 0).length,
-    meta: '尚未增加累计收货',
-  },
-  {
-    title: '已完成收货单',
-    value: rows.value.filter(row => row.status === 1).length,
-    meta: '已确认并更新累计收货',
-  },
-  {
-    title: '已取消收货单',
-    value: rows.value.filter(row => row.status === 2).length,
-    meta: '仅保留历史记录',
-  },
-])
 
 const totalInput = computed(() => {
   try {
@@ -269,7 +246,6 @@ async function openEditor(id = null, sourceId = null) {
       })
     }
 
-    original = JSON.stringify(form.value)
     formError.value = ''
 
     await nextTick()
@@ -282,39 +258,14 @@ async function openEditor(id = null, sourceId = null) {
   }
 }
 
-function isDirty() {
-  return Boolean(
-      form.value &&
-      JSON.stringify(form.value) !== original,
-  )
-}
-
 function closeEditor() {
-  if (
-      isDirty() &&
-      !window.confirm('尚有未保存的修改，确定放弃吗？')
-  ) {
-    return
-  }
-
   editor.value?.close()
   form.value = null
-  original = ''
   formError.value = ''
 }
 
 async function changeSource(event) {
-  const next = event.target.value
-
-  if (
-      isDirty() &&
-      !window.confirm('切换来源会放弃未保存的输入，继续吗？')
-  ) {
-    event.target.value = String(form.value.sourceId)
-    return
-  }
-
-  await openEditor(null, Number(next))
+  await openEditor(null, Number(event.target.value))
 }
 
 function fillRemaining() {
@@ -344,7 +295,6 @@ function saveEditor(shouldConfirm) {
 
     editor.value?.close()
     form.value = null
-    original = ''
 
     expanded.value = row.id
 
@@ -382,14 +332,6 @@ function resolveSourceId(row) {
 function confirmReceipt(row) {
   if (busy.value || Number(row?.status) !== 0) return
 
-  if (
-      !window.confirm(
-          `确认收货单 ${row.receiptOrderNo} 吗？确认后将更新累计收货数量，且不可再次编辑。`,
-      )
-  ) {
-    return
-  }
-
   busy.value = true
 
   try {
@@ -416,22 +358,6 @@ function confirmReceipt(row) {
   } finally {
     busy.value = false
   }
-}
-
-function resetDemo() {
-  if (
-      !window.confirm(
-          '仅重置本演示的浏览器数据，不连接数据库。是否继续？',
-      )
-  ) {
-    return
-  }
-
-  safely(() => {
-    service.reset()
-    refresh()
-    notify('演示数据已重置。')
-  })
 }
 
 /**
@@ -491,11 +417,6 @@ watch(
     },
 )
 
-onBeforeRouteLeave(() => (
-    !isDirty() ||
-    window.confirm('存在未保存的修改，确定离开吗？')
-))
-
 onBeforeUnmount(() => {
   clearTimeout(timer)
   window.removeEventListener('storage', onStorage)
@@ -508,9 +429,6 @@ onBeforeUnmount(() => {
       <div>
         <div class="kicker">RECEIVING</div>
         <h2>收货单管理</h2>
-        <p>
-          按到货批次记录实际收货；暂存与确认分开，明细直接在列表中展开。
-        </p>
       </div>
 
       <button
@@ -521,23 +439,6 @@ onBeforeUnmount(() => {
         ＋ 新建收货单
       </button>
     </section>
-
-    <!--
-    后续若需要恢复统计卡片，可直接使用 summaryItems。
-    这部分结构与 PutawayOrder.vue 可以保持一致。
-
-    <section class="summary">
-      <article
-        v-for="item in summaryItems"
-        :key="item.title"
-        class="summary-card"
-      >
-        <small>{{ item.title }}</small>
-        <strong>{{ item.value }}</strong>
-        <div class="summary-note">{{ item.meta }}</div>
-      </article>
-    </section>
-    -->
 
     <section class="panel">
       <div class="filters">
@@ -811,20 +712,6 @@ onBeforeUnmount(() => {
       </div>
     </section>
 
-    <div class="demo-bar">
-      <span>
-        当前仍使用 localStorage 作为演示数据层；本页只处理收货单。
-      </span>
-
-      <button
-          class="link"
-          type="button"
-          @click="resetDemo"
-      >
-        重置演示数据
-      </button>
-    </div>
-
     <div
         v-if="message"
         class="toast"
@@ -1013,16 +900,7 @@ onBeforeUnmount(() => {
                 :disabled="busy"
                 @click="closeEditor"
             >
-              返回列表
-            </button>
-
-            <button
-                class="btn"
-                type="button"
-                :disabled="busy"
-                @click="saveEditor(false)"
-            >
-              保存未完成
+              返回
             </button>
 
             <button
@@ -1052,8 +930,6 @@ onBeforeUnmount(() => {
   --muted: #6a6a6a;
   --hairline: #e5e1d8;
   --lavender: #b8a4ed;
-  --peach: #ffb084;
-  --ochre: #e8b94a;
 
   box-sizing: border-box;
   width: 100%;
@@ -1119,13 +995,6 @@ onBeforeUnmount(() => {
   letter-spacing: -1.2px;
 }
 
-.wms-page .page-head p {
-  margin: 10px 0 0;
-  color: var(--muted);
-  font-size: 14px;
-  line-height: 1.8;
-}
-
 .wms-page .btn {
   min-height: 42px;
   padding: 0 17px;
@@ -1146,64 +1015,6 @@ onBeforeUnmount(() => {
 
 .wms-page .btn:hover {
   filter: brightness(.96);
-}
-
-/* =========================
-   3. Summary：当前隐藏，保留给后续共用
-   ========================= */
-.wms-page .summary {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-  margin: 0 0 22px;
-}
-
-.wms-page .summary-card {
-  position: relative;
-  min-height: 115px;
-  padding: 19px 22px;
-  overflow: hidden;
-  border-radius: 20px;
-}
-
-.wms-page .summary-card:nth-child(1) {
-  background: var(--lavender);
-}
-
-.wms-page .summary-card:nth-child(2) {
-  background: var(--peach);
-}
-
-.wms-page .summary-card:nth-child(3) {
-  background: var(--ochre);
-}
-
-.wms-page .summary-card small {
-  font-size: 12px;
-}
-
-.wms-page .summary-card strong {
-  display: block;
-  margin: 10px 0 2px;
-  font-size: 32px;
-  font-weight: 600;
-}
-
-.wms-page .summary-card::after {
-  position: absolute;
-  right: -9px;
-  bottom: -15px;
-  width: 66px;
-  height: 66px;
-  border-radius: 22px;
-  background: rgba(255, 255, 255, .25);
-  content: "";
-  transform: rotate(20deg);
-}
-
-.wms-page .summary-note {
-  font-size: 11px;
-  opacity: .74;
 }
 
 /* =========================
@@ -1456,27 +1267,8 @@ onBeforeUnmount(() => {
 }
 
 /* =========================
-   7. 演示提示 / Toast
+   7. Toast
    ========================= */
-.wms-page .demo-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 14px;
-  margin: 18px 0 0;
-  padding: 13px 16px;
-  border: 1px dashed #d2c8b6;
-  border-radius: 12px;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.7;
-}
-
-.wms-page .demo-bar .link {
-  flex-shrink: 0;
-  color: var(--muted);
-}
-
 .wms-page .toast {
   position: fixed;
   z-index: 100;
@@ -1670,32 +1462,11 @@ onBeforeUnmount(() => {
     gap: 16px;
   }
 
-  .wms-page .summary {
-    gap: 8px;
-  }
-
-  .wms-page .summary-card {
-    padding: 15px 12px;
-  }
-
-  .wms-page .summary-card strong {
-    font-size: 27px;
-  }
-
-  .wms-page .summary-note {
-    display: none;
-  }
-
   .wms-page .filters {
     grid-template-columns: 1fr;
   }
 
   .wms-page .toolbar {
-    align-items: flex-start;
-  }
-
-  .wms-page .demo-bar {
-    flex-direction: column;
     align-items: flex-start;
   }
 
