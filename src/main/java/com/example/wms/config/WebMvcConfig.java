@@ -21,6 +21,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/users/**",
                         "/dashboard/**",
                         "/inbound/**",
+                        "/warehouses/**",
                         "/error"
                 );
     }

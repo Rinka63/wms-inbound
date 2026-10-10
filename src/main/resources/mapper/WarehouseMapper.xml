@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.example.wms.mapper.WarehouseMapper">
+
+    <select id="selectWarehouseList"
+            resultType="com.example.wms.vo.WarehouseVO">
+
+        SELECT
+            id,
+            warehouse_no,
+            warehouse_name
+        FROM warehouse
+
+        WHERE warehouse_status = 1
+
+        ORDER BY id DESC
+    </select>
+
+</mapper>
