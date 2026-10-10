@@ -568,13 +568,13 @@ function createIsDirty() {
 }
 
 function closeEditor(force = false) {
-  if (
-      !force &&
-      createIsDirty() &&
-      !window.confirm('尚有未保存的修改，确定放弃吗？')
-  ) {
-    return
-  }
+  // if (
+  //     !force &&
+  //     createIsDirty() &&
+  //     !window.confirm('尚有未保存的修改，确定放弃吗？')
+  // ) {
+  //   return
+  // }
 
   editor.value?.close()
   createForm.value = null

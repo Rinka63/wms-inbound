@@ -1,6 +1,6 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { onBeforeRouteLeave, useRoute } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { useUserStore } from '../stores/user'
 import {
   STORAGE_KEY,
@@ -32,7 +32,6 @@ const formError = ref('')
 const busy = ref(false)
 
 let service
-let original = ''
 let timer
 
 const filtered = computed(() => {
@@ -161,7 +160,6 @@ async function openEditor(id = null, sourceId = null) {
       })
     }
 
-    original = JSON.stringify(form.value)
     formError.value = ''
 
     await nextTick()
@@ -174,27 +172,14 @@ async function openEditor(id = null, sourceId = null) {
   }
 }
 
-const isDirty = () =>
-    form.value && JSON.stringify(form.value) !== original
-
 function closeEditor() {
-  if (isDirty() && !window.confirm('尚有未保存的修改，确定放弃吗？')) {
-    return
-  }
-
   editor.value?.close()
   form.value = null
+  formError.value = ''
 }
 
 async function changeSource(event) {
-  const next = event.target.value
-
-  if (isDirty() && !window.confirm('切换来源会放弃未保存的输入，继续吗？')) {
-    event.target.value = String(form.value.sourceId)
-    return
-  }
-
-  await openEditor(null, Number(next))
+  await openEditor(null, Number(event.target.value))
 }
 
 function fillRemaining() {
@@ -240,14 +225,6 @@ function saveEditor(confirm) {
 function confirmPutaway(row) {
   if (busy.value || Number(row?.status) !== 1) return
 
-  if (
-      !window.confirm(
-          `确认上架单 ${row.putawayOrderNo} 吗？确认后将更新库存数量，且不可再次编辑。`,
-      )
-  ) {
-    return
-  }
-
   busy.value = true
 
   try {
@@ -270,34 +247,10 @@ function confirmPutaway(row) {
 }
 
 function cancelOrder(row) {
-  if (
-      !window.confirm(
-          '取消这张尚未入账的上架单？明细将保留为只读记录。',
-      )
-  ) {
-    return
-  }
-
   safely(() => {
     service.cancel(row.id)
     refresh()
     notify('上架单已取消，库存数量不变。')
-  })
-}
-
-function resetDemo() {
-  if (
-      !window.confirm(
-          '仅重置本演示的浏览器数据，不连接数据库。是否继续？',
-      )
-  ) {
-    return
-  }
-
-  safely(() => {
-    service.reset()
-    refresh()
-    notify('演示数据已重置。')
   })
 }
 
@@ -355,12 +308,6 @@ watch(
     },
 )
 
-onBeforeRouteLeave(
-    () =>
-        !isDirty() ||
-        window.confirm('存在未保存的修改，确定离开吗？'),
-)
-
 onBeforeUnmount(() => {
   clearTimeout(timer)
   window.removeEventListener('storage', onStorage)
@@ -373,9 +320,9 @@ onBeforeUnmount(() => {
       <div>
         <div class="kicker">PUTAWAY</div>
         <h2>上架单管理</h2>
-<!--        <p>-->
-<!--          将已完成收货的商品放入目标库位；暂存不入账，确认后本批库存一次性增加。-->
-<!--        </p>-->
+        <!--        <p>-->
+        <!--          将已完成收货的商品放入目标库位；暂存不入账，确认后本批库存一次性增加。-->
+        <!--        </p>-->
       </div>
 
       <button
@@ -681,24 +628,10 @@ onBeforeUnmount(() => {
         </table>
       </div>
 
-      <div class="note">
-        点击上架单号展开本次明细。“上架中”只表示已暂存，不表示库存已经增加。
-      </div>
+<!--      <div class="note">-->
+<!--        点击上架单号展开本次明细。“上架中”只表示已暂存，不表示库存已经增加。-->
+<!--      </div>-->
     </section>
-
-    <div class="demo-bar">
-      <span>
-        当前仍使用 localStorage 作为演示数据层；本页只处理上架单。
-      </span>
-
-      <button
-          class="link"
-          type="button"
-          @click="resetDemo"
-      >
-        重置演示数据
-      </button>
-    </div>
 
     <div
         v-if="message"
@@ -769,9 +702,9 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
-<!--          <div class="callout">-->
-<!--            每个 SKU 本单选择一个目标库位。暂存不增加库存；确认后本批整体入账，剩余数量另建上架单。空白或 0 表示本次不处理该行。-->
-<!--          </div>-->
+          <!--          <div class="callout">-->
+          <!--            每个 SKU 本单选择一个目标库位。暂存不增加库存；确认后本批整体入账，剩余数量另建上架单。空白或 0 表示本次不处理该行。-->
+          <!--          </div>-->
 
           <div class="table-wrap">
             <table class="edit-table">
@@ -906,14 +839,14 @@ onBeforeUnmount(() => {
               返回
             </button>
 
-<!--            <button-->
-<!--                class="btn"-->
-<!--                type="button"-->
-<!--                :disabled="busy"-->
-<!--                @click="saveEditor(false)"-->
-<!--            >-->
-<!--              暂存进度-->
-<!--            </button>-->
+            <!--            <button-->
+            <!--                class="btn"-->
+            <!--                type="button"-->
+            <!--                :disabled="busy"-->
+            <!--                @click="saveEditor(false)"-->
+            <!--            >-->
+            <!--              暂存进度-->
+            <!--            </button>-->
 
             <button
                 class="btn primary"
@@ -1344,25 +1277,6 @@ onBeforeUnmount(() => {
   color:var(--muted)
 }
 
-.wms-page .demo-bar{
-  display:flex;
-  justify-content:space-between;
-  gap:14px;
-  align-items:center;
-  margin:18px 0 0;
-  padding:13px 16px;
-  border:1px dashed #d2c8b6;
-  border-radius:12px;
-  font-size:12px;
-  color:var(--muted);
-  line-height:1.7
-}
-
-.wms-page .demo-bar .link{
-  flex-shrink:0;
-  color:var(--muted)
-}
-
 .wms-page .toast{
   position:fixed;
   bottom:24px;
@@ -1576,11 +1490,6 @@ onBeforeUnmount(() => {
 
   .wms-page .toolbar{
     align-items:flex-start
-  }
-
-  .wms-page .demo-bar{
-    align-items:flex-start;
-    flex-direction:column
   }
 
   .wms-page .dialog-footer .buttons{
