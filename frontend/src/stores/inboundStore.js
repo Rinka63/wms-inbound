@@ -1,7 +1,7 @@
-const STORAGE_KEY = 'wms-inbound-practice-v1'
+const STORAGE_KEY = 'wms-inbound-practice-v3'
 
-export const RECEIPT_STATUS = { 0: '草稿', 1: '已完成', 2: '已取消' }
-export const PUTAWAY_STATUS = { 0: '待上架', 1: '上架中', 2: '已完成', 3: '已取消' }
+export const RECEIPT_STATUS = { 0: '未完成', 1: '已完成'}
+export const PUTAWAY_STATUS = { 1: '上架中', 2: '已完成' }
 
 export function units(value) {
   const text = String(value ?? '').trim()
@@ -71,26 +71,19 @@ function availableForReceipt(db, receipt) {
 }
 
 function recomputeInbounds(db) {
-  const completedReceipts = db.receipts.filter(order => order.status === 1)
-  const completedPutaways = db.putaways.filter(order => order.status === 2)
-
   for (const order of db.inbounds) {
     for (const item of order.items) {
-      item.receivedQty = decimal(completedReceipts.reduce((sum, receipt) => (
-        sum + receipt.items
-          .filter(line => line.inboundOrderItemId === item.id)
-          .reduce((lineSum, line) => lineSum + units(line.receivedQty), 0n)
+      item.receivedQty = decimal(db.receipts.reduce((sum, receipt) => (
+          sum + receipt.items
+              .filter(line => line.inboundOrderItemId === item.id)
+              .reduce((lineSum, line) => lineSum + units(line.receivedQty), 0n)
       ), 0n))
 
-      item.putawayQty = decimal(completedPutaways.reduce((sum, putaway) => (
-        sum + putaway.items
-          .filter(line => line.inboundOrderItemId === item.id)
-          .reduce((lineSum, line) => lineSum + units(line.putawayQty), 0n)
+      item.putawayQty = decimal(db.putaways.reduce((sum, putaway) => (
+          sum + putaway.items
+              .filter(line => line.inboundOrderItemId === item.id)
+              .reduce((lineSum, line) => lineSum + units(line.putawayQty), 0n)
       ), 0n))
-
-      if (units(item.putawayQty) > units(item.receivedQty) || units(item.receivedQty) > units(item.planQty)) {
-        throw new Error('数量不一致：必须满足已上架 ≤ 已收货 ≤ 计划数量。')
-      }
     }
 
     if ([0, 6].includes(order.status)) continue
@@ -168,8 +161,13 @@ function seedDatabase() {
       { id: 5, inboundOrderNo: 'IN202609220009', warehouseId: 2, status: 5, items: [
         { id: 7, skuId: 107, sku: 'SKU-TEA-003', skuName: '茶叶礼盒', planQty: '510.000' },
       ] },
-      { id: 6, inboundOrderNo: 'IN202609220004', warehouseId: 1, status: 0, items: [
-        { id: 8, skuId: 108, sku: 'SKU-BAG-002', skuName: '环保购物袋', planQty: '120.000' },
+      // 待收货、尚无收货单，可用于新建收货单
+      { id: 7, inboundOrderNo: 'IN202609250001', warehouseId: 1, status: 1, items: [
+        { id: 9, skuId: 109, sku: 'SKU-OIL-006', skuName: '花生油 5L', planQty: '300.000' },
+        { id: 10, skuId: 110, sku: 'SKU-SALT-007', skuName: '食用盐 400g', planQty: '800.000' },
+      ] },
+      { id: 8, inboundOrderNo: 'IN202609250002', warehouseId: 2, status: 1, items: [
+        { id: 11, skuId: 111, sku: 'SKU-WATER-009', skuName: '矿泉水 550ml×24', planQty: '150.000' },
       ] },
     ],
     receipts: [],
@@ -208,7 +206,6 @@ function seedDatabase() {
     receipt(2, 'RC202609240011', 2, 0, [[3, '420.000']], '已录入数量，尚未确认。', '2026-09-24 13:20:00'),
     receipt(3, 'RC202609230019', 3, 1, [[4, '32.000']], '退货收货完成。', '2026-09-23 17:15:00'),
     receipt(4, 'RC202609230012', 4, 1, [[5, '2400.000']], '调拨商品到货。', '2026-09-23 14:08:00'),
-    receipt(5, 'RC202609220006', 6, 2, [], '入库计划调整，已取消。', '2026-09-22 10:12:00'),
     receipt(6, 'RC202609220010', 5, 1, [[7, '510.000']], '全部到货。', '2026-09-22 16:00:00'),
   ]
 
@@ -246,9 +243,7 @@ function seedDatabase() {
   db.putaways = [
     putaway(1, 'PA202609240003', 1, 2, [[101, '480.000', 1001]], '首批上架，剩余数量另建一单。', '2026-09-24 13:05:00'),
     putaway(2, 'PA202609240006', 1, 1, [[101, '120.000', 1001], [102, '60.000', 1002]], '已暂存，尚未计入库存。', '2026-09-24 14:12:00'),
-    putaway(3, 'PA202609230009', 3, 0, [], '待选择数量和目标库位。', '2026-09-23 17:28:00'),
     putaway(4, 'PA202609230004', 4, 2, [[401, '1800.000', 1002]], '本批上架 1800，来源尚余 600。', '2026-09-23 15:46:00'),
-    putaway(5, 'PA202609220002', 1, 3, [], '重复创建，已取消。', '2026-09-22 11:06:00'),
     putaway(6, 'PA202609220005', 6, 2, [[601, '510.000', 2001]], '全部上架完成。', '2026-09-22 17:20:00'),
   ]
 
@@ -331,73 +326,58 @@ class ReceiptService extends DemoStore {
   sources() {
     const db = this.read()
     return db.inbounds
-      .filter(order => ![0, 5, 6].includes(order.status) && order.items.some(item => units(item.planQty) > units(item.receivedQty)))
-      .map(order => ({
-        id: order.id,
-        label: order.inboundOrderNo,
-        warehouseId: order.warehouseId,
-        remainingQty: decimal(units(total(order.items, 'planQty')) - units(total(order.items, 'receivedQty'))),
-      }))
+        .filter(order =>
+            [1, 2].includes(order.status) &&
+            !db.receipts.some(r => r.inboundOrderId === order.id)
+        )
+        .map(order => ({
+          id: order.id,
+          label: order.inboundOrderNo,
+          warehouseId: order.warehouseId,
+        }))
   }
 
-  form(sourceId, orderId = null) {
+  form(sourceId) {
     const db = this.read()
-    let existing = orderId ? find(db.receipts, Number(orderId)) : null
-
-    if (existing && existing.status !== 0) throw new Error('已完成或已取消的收货单不能继续办理。')
-    if (existing) sourceId = existing.inboundOrderId
-    if (!existing) existing = db.receipts.find(row => row.inboundOrderId === Number(sourceId) && row.status === 0)
-
     const source = find(db.inbounds, Number(sourceId), '来源入库单')
-    if ([0, 5, 6].includes(source.status)) {
-      throw new Error('只能从已提交、仍有待收货数量的入库单创建收货单。')
+    if (![1, 2].includes(source.status)) {
+      throw new Error('只能从待收货或部分收货的入库单创建收货单。')
     }
 
     const warehouse = find(db.warehouses, source.warehouseId)
     const items = source.items.map(item => {
-      const old = existing?.items.find(line => line.inboundOrderItemId === item.id)
       const planned = units(item.planQty)
       const received = units(item.receivedQty)
       return {
         sourceItemId: item.id,
         inboundOrderItemId: item.id,
         skuId: item.skuId,
-        sku: item.sku,
-        skuName: item.skuName,
         sourceQty: decimal(planned),
         priorQty: decimal(received),
         maxQty: decimal(planned - received),
-        qty: old?.receivedQty || '',
+        qty: '',
       }
-    }).filter(item => units(item.maxQty) > 0n || item.qty !== '')
+    }).filter(item => units(item.maxQty) > 0n)
 
     return {
-      id: existing?.id || null,
-      version: existing?.version || 0,
+      id: null,
       sourceId: source.id,
       sourceLabel: source.inboundOrderNo,
-      documentNo: existing?.receiptOrderNo || '确认或暂存时生成',
+      documentNo: '确认时生成',
       warehouseId: source.warehouseId,
       warehouseName: warehouse.warehouseName,
-      status: existing?.status ?? 0,
-      remark: existing?.remark || '',
+      remark: '',
       items,
     }
   }
 
-  save(form, confirm, user = { id: 12, name: '演示操作员' }) {
+  save(form, user = { id: 12, name: '演示操作员' }) {
     return this.transaction(db => {
-      let row = form.id ? find(db.receipts, Number(form.id)) : null
-      if (row?.status === 1 && confirm) return row
-      if (row && row.status !== 0) throw new Error('收货单已完成或已取消，不能修改。')
-      if (row && row.version !== form.version) throw new Error('该草稿已被修改，请关闭弹窗后重新打开。')
-
       const source = find(db.inbounds, Number(form.sourceId), '来源入库单')
-      if (row && row.inboundOrderId !== source.id) throw new Error('已保存收货单不能变更来源。')
-      if (db.receipts.some(item => item.id !== row?.id && item.inboundOrderId === source.id && item.status === 0)) {
-        throw new Error('该入库单已有未完成收货单，请使用“继续收货”。')
+
+      if (db.receipts.some(r => r.inboundOrderId === source.id)) {
+        throw new Error('该入库单已有收货单，请在列表中继续收货。')
       }
-      if ([0, 5, 6].includes(source.status)) throw new Error('来源入库单当前不允许收货。')
 
       const seen = new Set()
       const lines = []
@@ -411,58 +391,49 @@ class ReceiptService extends DemoStore {
 
         const available = units(src.planQty) - units(src.receivedQty)
         if (qty > available) {
-          throw new Error(`${input.sku || '该 SKU'} 超过当前可收货数量 ${formatQuantity(decimal(available))}。`)
+          throw new Error(`SKU ${src.skuId} 超过当前可收货数量 ${formatQuantity(decimal(available))}。`)
         }
 
-        const old = row?.items.find(item => item.inboundOrderItemId === src.id)
         lines.push({
-          id: old?.id || ++db.nextId,
+          id: ++db.nextId,
           inboundOrderItemId: src.id,
           skuId: src.skuId,
           receivedQty: decimal(qty),
         })
       }
 
-      if (confirm && lines.length === 0) throw new Error('请至少填写一行大于 0 的数量。')
+      if (lines.length === 0) throw new Error('请至少填写一行大于 0 的数量。')
       if (String(form.remark || '').length > 500) throw new Error('备注最多 500 字。')
 
       const time = now()
-      const id = row?.id || ++db.nextId
-      if (!row) {
-        row = {
-          id,
-          receiptOrderNo: `RC${time.slice(0, 10).replaceAll('-', '')}${String(id).padStart(6, '0')}`,
-          inboundOrderId: source.id,
-          warehouseId: source.warehouseId,
-          createdTime: time,
-          version: 0,
-          items: [],
-        }
-        db.receipts.push(row)
+      const id = ++db.nextId
+      const row = {
+        id,
+        receiptOrderNo: `RC${time.slice(0, 10).replaceAll('-', '')}${String(id).padStart(6, '0')}`,
+        inboundOrderId: source.id,
+        warehouseId: source.warehouseId,
+        receiverId: user.id,
+        receiverName: user.name,
+        remark: String(form.remark || '').trim(),
+        createdTime: time,
+        updatedTime: time,
+        receivedTime: time,
+        items: lines.map(item => ({ ...item, receiptOrderId: id })),
       }
 
-      row.items = lines.map(item => ({ ...item, receiptOrderId: id }))
-      row.remark = String(form.remark || '').trim()
-      row.updatedTime = time
-      row.version++
-      row.status = confirm ? 1 : 0
-      row.receiverId = user.id
-      row.receiverName = user.name
-      row.receivedTime = confirm ? time : null
+      // 推算收货单状态：所有入库明细都收齐则已完成
+      const allDone = source.items.every(item => {
+        const thisQty = lines.find(l => l.inboundOrderItemId === item.id)
+        const added = thisQty ? units(thisQty.receivedQty) : 0n
+        return units(item.receivedQty) + added >= units(item.planQty)
+      })
+      row.status = allDone ? 1 : 0
+
+      db.receipts.push(row)
       return row
     })
   }
 
-  cancel(id) {
-    return this.transaction(db => {
-      const row = find(db.receipts, Number(id))
-      if (row.status !== 0) throw new Error('只能取消尚未完成的收货单；已确认单据不能直接取消。')
-      row.status = 2
-      row.updatedTime = now()
-      row.version++
-      return row
-    })
-  }
 }
 
 class PutawayService extends DemoStore {
@@ -494,84 +465,71 @@ class PutawayService extends DemoStore {
   sources() {
     const db = this.read()
     return db.receipts
-      .filter(receipt => receipt.status === 1 && units(availableForReceipt(db, receipt)) > 0n)
-      .map(receipt => ({
-        id: receipt.id,
-        label: `${receipt.receiptOrderNo} · ${find(db.inbounds, receipt.inboundOrderId).inboundOrderNo}`,
-        warehouseId: receipt.warehouseId,
-        remainingQty: availableForReceipt(db, receipt),
-      }))
+        .filter(receipt => [0, 1].includes(receipt.status) && receipt.items.length > 0)
+        .map(receipt => ({
+          id: receipt.id,
+          label: `${receipt.receiptOrderNo} · ${find(db.inbounds, receipt.inboundOrderId).inboundOrderNo}`,
+          warehouseId: receipt.warehouseId,
+        }))
   }
 
   form(sourceId, orderId = null) {
     const db = this.read()
     let existing = orderId ? find(db.putaways, Number(orderId)) : null
 
-    if (existing && ![0, 1].includes(existing.status)) {
-      throw new Error('已完成或已取消的上架单不能继续办理。')
+    if (existing && existing.status !== 1) {
+      throw new Error('只有上架中的上架单可以继续办理。')
     }
     if (existing) sourceId = existing.receiptOrderId
-    if (!existing) {
-      existing = db.putaways.find(row => row.receiptOrderId === Number(sourceId) && [0, 1].includes(row.status))
-    }
 
     const source = find(db.receipts, Number(sourceId), '来源收货单')
-    if (source.status !== 1) throw new Error('只能从已完成收货单创建上架单。')
-
     const warehouse = find(db.warehouses, source.warehouseId)
     const inbound = find(db.inbounds, source.inboundOrderId)
+
     const items = source.items.map(item => {
       const old = existing?.items.find(line => line.receiptOrderItemId === item.id)
-      const product = inboundItem(db, item.inboundOrderItemId).item
       const received = units(item.receivedQty)
       const posted = postedForReceiptItem(db, item.id)
       return {
         sourceItemId: item.id,
         inboundOrderItemId: item.inboundOrderItemId,
         skuId: item.skuId,
-        sku: product.sku,
-        skuName: product.skuName,
         sourceQty: decimal(received),
         priorQty: decimal(posted),
         maxQty: decimal(received - posted),
         qty: old?.putawayQty || '',
-        locationId: old?.locationId ? String(old.locationId) : '',
+        locationCode: old?.locationCode || '',
       }
     }).filter(item => units(item.maxQty) > 0n || item.qty !== '')
 
     return {
       id: existing?.id || null,
-      version: existing?.version || 0,
       sourceId: source.id,
       sourceLabel: `${source.receiptOrderNo} · ${inbound.inboundOrderNo}`,
-      documentNo: existing?.putawayOrderNo || '确认或暂存时生成',
+      documentNo: existing?.putawayOrderNo || '确认时生成',
       warehouseId: source.warehouseId,
       warehouseName: warehouse.warehouseName,
-      status: existing?.status ?? 0,
+      status: existing?.status ?? 1,
       remark: existing?.remark || '',
       items,
     }
   }
 
-  save(form, confirm, user = { id: 12, name: '演示操作员' }) {
+  save(form, user = { id: 12, name: '演示操作员' }) {
     return this.transaction(db => {
       let row = form.id ? find(db.putaways, Number(form.id)) : null
-      if (row?.status === 2 && confirm) return row
-      if (row && ![0, 1].includes(row.status)) throw new Error('上架单已完成或已取消，不能修改。')
-      if (row && row.version !== form.version) throw new Error('该上架单已被修改，请关闭弹窗后重新打开。')
+      if (row && row.status !== 1) throw new Error('上架单已完成，不能修改。')
 
       const source = find(db.receipts, Number(form.sourceId), '来源收货单')
       if (row && row.receiptOrderId !== source.id) throw new Error('已保存上架单不能变更来源。')
-      if (db.putaways.some(item => item.id !== row?.id && item.receiptOrderId === source.id && [0, 1].includes(item.status))) {
-        throw new Error('该收货单已有未完成上架单，请使用“继续上架”。')
+      if (!row && db.putaways.some(item => item.receiptOrderId === source.id && item.status === 1)) {
+        throw new Error('该收货单已有上架中的上架单，请使用"继续上架单"。')
       }
-      if (source.status !== 1) throw new Error('来源收货单尚未完成。')
 
       const parent = find(db.inbounds, source.inboundOrderId)
-      if (parent.status === 6) throw new Error('来源入库单已取消。')
-
       const seen = new Set()
       const lines = []
+
       for (const input of form.items) {
         if (seen.has(input.sourceItemId)) throw new Error('同一上架单不允许重复来源明细。')
         seen.add(input.sourceItemId)
@@ -582,13 +540,15 @@ class PutawayService extends DemoStore {
 
         const available = units(src.receivedQty) - postedForReceiptItem(db, src.id)
         if (qty > available) {
-          throw new Error(`${input.sku || '该 SKU'} 超过当前可上架数量 ${formatQuantity(decimal(available))}。`)
+          throw new Error(`SKU ${src.skuId} 超过当前可上架数量 ${formatQuantity(decimal(available))}。`)
         }
 
-        const location = find(db.locations, Number(input.locationId), '目标库位')
-        if (location.warehouseId !== source.warehouseId || location.status !== 1) {
-          throw new Error('目标库位必须是当前仓库的启用库位。')
-        }
+        const locationCode = String(input.locationCode || '').trim()
+        if (!locationCode) throw new Error(`SKU ${src.skuId} 请填写目标库位。`)
+        const location = db.locations.find(l =>
+            l.warehouseId === source.warehouseId && l.locationCode === locationCode && l.status === 1
+        )
+        if (!location) throw new Error(`库位 ${locationCode} 不存在或未启用。`)
 
         const old = row?.items.find(item => item.receiptOrderItemId === src.id)
         lines.push({
@@ -598,10 +558,11 @@ class PutawayService extends DemoStore {
           skuId: src.skuId,
           putawayQty: decimal(qty),
           locationId: location.id,
+          locationCode: location.locationCode,
         })
       }
 
-      if (confirm && lines.length === 0) throw new Error('请至少填写一行大于 0 的数量。')
+      if (lines.length === 0) throw new Error('请至少填写一行大于 0 的数量。')
       if (String(form.remark || '').length > 500) throw new Error('备注最多 500 字。')
 
       const time = now()
@@ -614,7 +575,6 @@ class PutawayService extends DemoStore {
           receiptOrderId: source.id,
           warehouseId: source.warehouseId,
           createdTime: time,
-          version: 0,
           items: [],
         }
         db.putaways.push(row)
@@ -623,24 +583,27 @@ class PutawayService extends DemoStore {
       row.items = lines.map(item => ({ ...item, putawayOrderId: id }))
       row.remark = String(form.remark || '').trim()
       row.updatedTime = time
-      row.version++
-      row.status = confirm ? 2 : lines.length ? 1 : 0
       row.operatorId = user.id
       row.operatorName = user.name
-      row.putawayTime = confirm ? time : null
 
-      if (confirm) postInventory(db, row)
-      return row
-    })
-  }
+      // 累加上架库存
+      postInventory(db, row)
 
-  cancel(id) {
-    return this.transaction(db => {
-      const row = find(db.putaways, Number(id))
-      if (![0, 1].includes(row.status)) throw new Error('只能取消尚未完成的上架单；已入账单据不能直接取消。')
-      row.status = 3
-      row.updatedTime = now()
-      row.version++
+      // 推算状态：入库单所有明细的 putawayQty >= planQty 则已完成
+      const allDone = parent.items.every(item => {
+        const totalPutaway = db.putaways
+            .filter(p => p.status === 2 || p.id === id)
+            .reduce((sum, p) =>
+                    sum + p.items
+                        .filter(l => l.inboundOrderItemId === item.id)
+                        .reduce((s, l) => s + units(l.putawayQty), 0n)
+                , 0n)
+        return totalPutaway >= units(item.planQty)
+      })
+
+      row.status = allDone ? 2 : 1
+      row.putawayTime = allDone ? time : null
+
       return row
     })
   }

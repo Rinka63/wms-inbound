@@ -223,6 +223,46 @@
 
     </select>
 
+    <insert id="insertInboundOrder"
+            parameterType="com.example.wms.entity.InboundOrder"
+            useGeneratedKeys="true"
+            keyProperty="id">
+
+        INSERT INTO inbound_order (
+        inbound_order_no,
+        warehouse_id,
+        inbound_type,
+        inbound_status,
+        created_by,
+        remark
+        ) VALUES (
+        #{inboundOrderNo},
+        #{warehouseId},
+        #{inboundType},
+        #{inboundStatus},
+        #{createdBy},
+        #{remark}
+        )
+
+    </insert>
+
+    <insert id="insertInboundOrderItems">
+
+        INSERT INTO inbound_order_item (
+        inbound_order_id,
+        sku_id,
+        plan_qty
+        ) VALUES
+        <foreach collection="items" item="item" separator=",">
+            (
+            #{item.inboundOrderId},
+            #{item.skuId},
+            #{item.planQty}
+            )
+        </foreach>
+
+    </insert>
+
 
 
 </mapper>

@@ -1,5 +1,6 @@
 package com.example.wms.controller;
 
+import com.example.wms.dto.CreateInboundOrderRequest;
 import com.example.wms.dto.InboundOrderDetailResponse;
 import com.example.wms.dto.InboundOrderResponse;
 import com.example.wms.service.InboundOrderService;
@@ -9,6 +10,10 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import com.example.wms.dto.CreateInboundOrderResponse;
+import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 
 import java.util.List;
 
@@ -33,6 +38,17 @@ public class InboundOrderController {
 
         InboundOrderDetailResponse response =
                 inboundOrderService.getInboundOrderDetail(id);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping
+    public ResponseEntity<CreateInboundOrderResponse> createInboundOrder(
+            @Valid @RequestBody CreateInboundOrderRequest request
+    ) {
+
+        CreateInboundOrderResponse response =
+                inboundOrderService.createInboundOrder(request);
 
         return ResponseEntity.ok(response);
     }

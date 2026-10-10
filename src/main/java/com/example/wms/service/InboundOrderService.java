@@ -3,6 +3,11 @@ package com.example.wms.service;
 import com.example.wms.dto.InboundOrderDetailResponse;
 import com.example.wms.dto.InboundOrderResponse;
 import com.example.wms.mapper.InboundOrderMapper;
+import com.example.wms.dto.CreateInboundOrderRequest;
+import com.example.wms.dto.CreateInboundOrderResponse;
+import com.example.wms.entity.InboundOrder;
+import com.example.wms.entity.InboundOrderItem;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -13,6 +18,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.List;
 
 @Service
@@ -23,11 +29,58 @@ public class InboundOrderService {
 
     private static final DateTimeFormatter TIME_FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+    private static final DateTimeFormatter ORDER_NO_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+
 
 
     public List<InboundOrderResponse> getInboundOrderList() {
         return inboundOrderMapper.selectInboundOrderList();
     }
+
+    @Transactional
+    public CreateInboundOrderResponse createInboundOrder(CreateInboundOrderRequest request) {
+
+        /*
+         * 1. 插入单头，入库类型固定为采购入库
+         */
+        InboundOrder order = new InboundOrder();
+        order.setInboundOrderNo(generateOrderNo());
+        order.setWarehouseId(request.getWarehouseId());
+        order.setInboundType(1);
+        order.setInboundStatus(request.getStatus());
+        order.setCreatedBy(request.getCreatedBy());
+        order.setRemark(request.getRemark());
+
+        inboundOrderMapper.insertInboundOrder(order);
+
+        /*
+         * 2. 批量插入明细
+         */
+        List<InboundOrderItem> items = request.getItems().stream()
+                .map(source -> {
+                    InboundOrderItem item = new InboundOrderItem();
+                    item.setInboundOrderId(order.getId());
+                    item.setSkuId(source.getSkuId());
+                    item.setPlanQty(source.getPlanQty());
+                    return item;
+                })
+                .toList();
+
+        inboundOrderMapper.insertInboundOrderItems(items);
+
+        return new CreateInboundOrderResponse(
+                order.getId(),
+                order.getInboundOrderNo()
+        );
+    }
+
+    private String generateOrderNo() {
+        return "IN"
+                + LocalDateTime.now().format(ORDER_NO_FORMATTER)
+                + String.format("%04d", ThreadLocalRandom.current().nextInt(10000));
+    }
+
     @Transactional(readOnly = true)
     public InboundOrderDetailResponse getInboundOrderDetail(Long id) {
 
@@ -177,7 +230,7 @@ public class InboundOrderService {
     ) {
 
         String suffix = switch (receipt.getStatus()) {
-            case 0 -> "已创建";
+            case 0 -> "未完成";
             case 1 -> "已完成";
             case 2 -> "已取消";
             default -> "";

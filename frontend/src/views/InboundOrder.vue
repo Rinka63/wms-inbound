@@ -1,9 +1,10 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useUserStore } from '../stores/user'
 
+const userStore = useUserStore()
 const keyword = ref('')
 const warehouse = ref('')
-const inboundType = ref('')
 const createdRange = ref('all')
 const statusFilter = ref('')
 
@@ -48,7 +49,7 @@ const statusClassMap = {
 }
 
 const receiptStatusMap = {
-  0: { label: '草稿', className: 's0' },
+  0: { label: '未完成', className: 's0' },
   1: { label: '已完成', className: 's5' },
   2: { label: '已取消', className: 's6' },
 }
@@ -246,34 +247,44 @@ const warehouseOptions = computed(() =>
     )]
 )
 
-const createWarehouseOptions = computed(() => {
-  const seen = new Set()
+// const createWarehouseOptions = computed(() => {
+//   const seen = new Set()
+//
+//   return orders.value.reduce((result, item) => {
+//     const name = item.warehouseName
+//     if (!name) return result
+//
+//     const id = item.warehouseId ?? null
+//     const key = id != null ? `id:${id}` : `name:${name}`
+//     if (seen.has(key)) return result
+//
+//     seen.add(key)
+//     result.push({
+//       key,
+//       id,
+//       name,
+//     })
+//
+//     return result
+//   }, [])
+// })
 
-  return orders.value.reduce((result, item) => {
-    const name = item.warehouseName
-    if (!name) return result
+const warehouses = ref([])
 
-    const id = item.warehouseId ?? null
-    const key = id != null ? `id:${id}` : `name:${name}`
-    if (seen.has(key)) return result
+async function loadWarehouses() {
+  const response = await fetch('/warehouses',{
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${userStore.token}`,
+    }
+  })
 
-    seen.add(key)
-    result.push({
-      key,
-      id,
-      name,
-    })
+  if (!response.ok) {
+    throw new Error(`获取仓库列表失败 (${response.status})`)
+  }
 
-    return result
-  }, [])
-})
-
-const inboundTypeOptions = [
-  { label: '采购入库', value: 1 },
-  { label: '退货入库', value: 2 },
-  { label: '调拨入库', value: 3 },
-  { label: '其他入库', value: 4 },
-]
+  warehouses.value = await response.json()
+}
 
 const createPlanTotal = computed(() =>
     (createForm.value?.items || []).reduce(
@@ -334,10 +345,6 @@ const filteredOrders = computed(() => {
         !warehouse.value ||
         item.warehouseName === warehouse.value
 
-    const matchType =
-        inboundType.value === '' ||
-        Number(item.inboundType) === Number(inboundType.value)
-
     const matchStatus =
         statusFilter.value === '' ||
         Number(item.status) === Number(statusFilter.value)
@@ -348,7 +355,6 @@ const filteredOrders = computed(() => {
     return (
         matchKeyword &&
         matchWarehouse &&
-        matchType &&
         matchStatus &&
         matchCreatedTime
     )
@@ -375,7 +381,6 @@ watch(
     [
       keyword,
       warehouse,
-      inboundType,
       createdRange,
       statusFilter,
       pageSize,
@@ -456,7 +461,6 @@ function actionText(status) {
 function resetFilters() {
   keyword.value = ''
   warehouse.value = ''
-  inboundType.value = ''
   createdRange.value = 'all'
   statusFilter.value = ''
 }
@@ -537,31 +541,35 @@ function displaySkuCode(item) {
 
 function newInboundItem() {
   return {
-    sku: '',
-    skuName: '',
+    skuId: '',
     planQty: '',
   }
 }
 
 async function openEditor() {
-  const firstWarehouse = createWarehouseOptions.value[0]
+  createError.value = ''
+
+  try {
+    await loadWarehouses()
+  } catch (error) {
+    console.error('获取仓库列表失败：', error)
+    createError.value = error.message
+  }
 
   createForm.value = {
-    warehouseKey: firstWarehouse?.key || '',
-    warehouseName: firstWarehouse?.name || '',
-    inboundType: 1,
+    warehouseId: userStore.warehouseId,
     remark: '',
     items: [newInboundItem()],
   }
 
   createOriginal = JSON.stringify(createForm.value)
-  createError.value = ''
 
   await nextTick()
   if (editor.value && !editor.value.open) {
     editor.value.showModal()
   }
 }
+
 
 function createIsDirty() {
   return createForm.value && JSON.stringify(createForm.value) !== createOriginal
@@ -599,61 +607,49 @@ function removeInboundItem(index) {
 
 function validateCreateForm() {
   const form = createForm.value
-  if (!form) throw new Error('新建入库单表单不存在')
 
-  const selectedWarehouse = createWarehouseOptions.value.find(
-      (item) => item.key === form.warehouseKey
-  )
-
-  const warehouseName = selectedWarehouse?.name || form.warehouseName.trim()
-  if (!warehouseName) throw new Error('请选择或填写仓库')
-
+  if (!form.warehouseId) throw new Error('请选择仓库')
   if (!form.items.length) throw new Error('请至少添加一条 SKU 明细')
 
+  const skuIdPattern = /^[1-9]\d*$/
   const qtyPattern = /^(?:0|[1-9]\d*)(?:\.\d{1,3})?$/
+  const skuIds = new Set()
 
   form.items.forEach((item, index) => {
-    if (!item.sku.trim()) {
-      throw new Error(`第 ${index + 1} 行请输入 SKU 编码`)
+    const skuId = String(item.skuId).trim()
+    if (!skuIdPattern.test(skuId)) {
+      throw new Error(`第 ${index + 1} 行 SKU ID 必须为正整数`)
     }
-
-    if (!item.skuName.trim()) {
-      throw new Error(`第 ${index + 1} 行请输入商品名称`)
+    if (skuIds.has(skuId)) {
+      throw new Error(`第 ${index + 1} 行 SKU ID 重复`)
     }
+    skuIds.add(skuId)
 
-    const qty = String(item.planQty ?? '').trim()
+    const qty = String(item.planQty).trim()
     if (!qtyPattern.test(qty) || Number(qty) <= 0) {
       throw new Error(`第 ${index + 1} 行计划入库数量必须大于 0，且最多保留 3 位小数`)
     }
   })
 
-  return {
-    selectedWarehouse,
-    warehouseName,
-  }
 }
 
-async function saveInboundOrder(submit) {
+async function saveInboundOrder() {
   if (createBusy.value) return
 
   createBusy.value = true
   createError.value = ''
 
   try {
-    const { selectedWarehouse, warehouseName } = validateCreateForm()
+    validateCreateForm()
     const form = createForm.value
 
     const payload = {
-      ...(selectedWarehouse?.id != null
-          ? { warehouseId: selectedWarehouse.id }
-          : {}),
-      warehouseName,
-      inboundType: Number(form.inboundType),
-      status: submit ? 1 : 0,
+      warehouseId: form.warehouseId,
+      createdBy: userStore.userId,
+      status: 1,
       remark: form.remark.trim(),
       items: form.items.map((item) => ({
-        sku: item.sku.trim(),
-        skuName: item.skuName.trim(),
+        skuId: Number(item.skuId),
         planQty: Number(item.planQty),
       })),
     }
@@ -804,7 +800,7 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="inbound-count">
-          共 <b>{{ orders.length }}</b> 条
+          共 <b>{{ filteredOrders.length }}</b> 条
         </div>
       </div>
 
@@ -969,28 +965,20 @@ onBeforeUnmount(() => {
               <label for="create-warehouse">仓库</label>
 
               <select
-                  v-if="createWarehouseOptions.length"
                   id="create-warehouse"
-                  v-model="createForm.warehouseKey"
+                  v-model="createForm.warehouseId"
               >
                 <option
-                    v-for="item in createWarehouseOptions"
-                    :key="item.key"
-                    :value="item.key"
+                    v-for="item in warehouses"
+                    :key="item.id"
+                    :value="item.id"
                 >
-                  {{ item.name }}
+                  {{ item.warehouseName }}
                 </option>
               </select>
 
-              <input
-                  v-else
-                  id="create-warehouse"
-                  v-model.trim="createForm.warehouseName"
-                  class="inbound-input"
-                  type="text"
-                  placeholder="请输入仓库名称"
-              />
             </div>
+
           </div>
 
 
@@ -1014,8 +1002,7 @@ onBeforeUnmount(() => {
             <table class="inbound-table inbound-editor-table">
               <thead>
               <tr>
-                <th>SKU 编码</th>
-                <th>商品名称</th>
+                <th>SKU ID</th>
                 <th>计划入库数量</th>
                 <th>操作</th>
               </tr>
@@ -1028,21 +1015,12 @@ onBeforeUnmount(() => {
               >
                 <td>
                   <input
-                      v-model.trim="item.sku"
+                      v-model.trim="item.skuId"
                       class="inbound-editor-input"
                       type="text"
-                      :aria-label="`第 ${index + 1} 行 SKU 编码`"
-                      placeholder="例如 SKU-001"
-                  />
-                </td>
-
-                <td>
-                  <input
-                      v-model.trim="item.skuName"
-                      class="inbound-editor-input"
-                      type="text"
-                      :aria-label="`第 ${index + 1} 行商品名称`"
-                      placeholder="请输入商品名称"
+                      inputmode="numeric"
+                      autocomplete="off"
+                      :aria-label="`第 ${index + 1} 行 SKU ID`"
                   />
                 </td>
 
@@ -1104,7 +1082,7 @@ onBeforeUnmount(() => {
                 type="button"
                 class="inbound-btn primary"
                 :disabled="createBusy"
-                @click="saveInboundOrder(true)"
+                @click="saveInboundOrder()"
             >
               提交入库单
             </button>

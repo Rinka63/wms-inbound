@@ -4,6 +4,8 @@ import com.example.wms.dto.InboundOrderDetailResponse;
 import com.example.wms.dto.InboundOrderResponse;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import com.example.wms.entity.InboundOrder;
+import com.example.wms.entity.InboundOrderItem;
 
 import java.util.List;
 
@@ -41,4 +43,17 @@ public interface InboundOrderMapper {
     List<InboundOrderDetailResponse.Putaway> selectPutawayRecords(
             @Param("inboundOrderId") Long inboundOrderId
     );
+
+    /**
+     * 插入入库单头，回填 id
+     */
+    int insertInboundOrder(InboundOrder order);
+
+    /**
+     * 批量插入入库单明细
+     */
+    int insertInboundOrderItems(
+            @Param("items") List<InboundOrderItem> items
+    );
+
 }

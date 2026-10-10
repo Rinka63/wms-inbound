@@ -15,6 +15,10 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
+      '/warehouses': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
       '/inbound': {
         target: 'http://localhost:8080',
         changeOrigin: true,
