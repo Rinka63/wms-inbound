@@ -41,4 +41,22 @@ public interface InboundOrderMapper {
     List<InboundOrderDetailResponse.Putaway> selectPutawayRecords(
             @Param("inboundOrderId") Long inboundOrderId
     );
+
+
+    /**
+     * 加行锁读取入库单状态，防止并发重复建收货单
+     * 返回 null 表示入库单不存在
+     */
+    Integer selectInboundStatusForUpdate(
+            @Param("id") Long id
+    );
+
+
+    /**
+     * 更新入库单状态
+     */
+    int updateInboundStatus(
+            @Param("id") Long id,
+            @Param("status") Integer status
+    );
 }

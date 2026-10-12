@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.example.wms.mapper.ReceiptOrderMapper">
+
+    <select id="selectReceiptOrderList"
+            resultType="com.example.wms.dto.ReceiptOrderResponse">
+
+        SELECT
+        ro.id,
+        ro.receipt_order_no AS receiptOrderNo,
+
+        ro.inbound_order_id AS inboundOrderId,
+        io.inbound_order_no AS inboundOrderNo,
+
+        ro.warehouse_id AS warehouseId,
+        w.warehouse_name AS warehouseName,
+
+        ro.receipt_status AS status,
+
+        u.real_name AS receiverName,
+
+        ro.gmt_create AS createdTime,
+        ro.received_time AS receivedTime,
+
+        ro.remark
+
+        FROM receipt_order ro
+
+        LEFT JOIN inbound_order io
+        ON io.id = ro.inbound_order_id
+
+        LEFT JOIN warehouse w
+        ON w.id = ro.warehouse_id
+
+        LEFT JOIN wms_user u
+        ON u.id = ro.receiver_id
+
+        ORDER BY ro.gmt_create DESC, ro.id DESC
+
+    </select>
+
+    <select id="selectReceiptOrderLines"
+            resultType="com.example.wms.dto.ReceiptOrderResponse$Line">
+
+        SELECT
+        roi.receipt_order_id AS receiptOrderId,
+        roi.inbound_order_item_id AS inboundOrderItemId,
+        roi.sku_id AS skuId,
+        ioi.plan_qty AS planQty,
+        roi.received_qty AS receivedQty
+
+        FROM receipt_order_item roi
+
+        JOIN inbound_order_item ioi
+        ON ioi.id = roi.inbound_order_item_id
+
+        ORDER BY roi.receipt_order_id, roi.inbound_order_item_id
+
+    </select>
+
+    <insert id="insertReceiptOrder"
+            parameterType="com.example.wms.entity.ReceiptOrder"
+            useGeneratedKeys="true"
+            keyProperty="id">
+
+        INSERT INTO receipt_order (
+        receipt_order_no,
+        inbound_order_id,
+        warehouse_id,
+        receiver_id,
+        receipt_status,
+        received_time,
+        remark
+        ) VALUES (
+        #{receiptOrderNo},
+        #{inboundOrderId},
+        #{warehouseId},
+        #{receiverId},
+        #{receiptStatus},
+        #{receivedTime},
+        #{remark}
+        )
+
+    </insert>
+
+    <insert id="insertReceiptOrderItems">
+
+        INSERT INTO receipt_order_item (
+        receipt_order_id,
+        inbound_order_item_id,
+        sku_id,
+        received_qty
+        ) VALUES
+        <foreach collection="items" item="item" separator=",">
+            (
+            #{item.receiptOrderId},
+            #{item.inboundOrderItemId},
+            #{item.skuId},
+            #{item.receivedQty}
+            )
+        </foreach>
+
+    </insert>
+
+    <update id="addInboundItemReceivedQty">
+
+        UPDATE inbound_order_item ioi
+
+        JOIN receipt_order_item roi
+        ON roi.inbound_order_item_id = ioi.id
+
+        SET ioi.received_qty = ioi.received_qty + roi.received_qty
+
+        WHERE roi.receipt_order_id = #{receiptOrderId}
+
+    </update>
+
+    <!--
+        确认全部收货，一条 SQL 完成：
+        依赖一对一约定，收货明细与入库明细的 received_qty 始终相等，
+        补满即两边都设为 plan_qty；只读 plan_qty（不被修改），
+        所以不受 MySQL 多表 UPDATE 赋值顺序的影响。
+        receipt_status = 0 的条件防止重复确认。
+    -->
+    <update id="completeReceiptOrder">
+
+        UPDATE receipt_order ro
+
+        JOIN receipt_order_item roi
+        ON roi.receipt_order_id = ro.id
+
+        JOIN inbound_order_item ioi
+        ON ioi.id = roi.inbound_order_item_id
+
+        JOIN inbound_order io
+        ON io.id = ro.inbound_order_id
+
+        SET roi.received_qty = ioi.plan_qty,
+        ioi.received_qty = ioi.plan_qty,
+        ro.receipt_status = 1,
+        ro.received_time = NOW(),
+        io.inbound_status = 3
+
+        WHERE ro.id = #{id}
+        AND ro.receipt_status = 0
+
+    </update>
+
+</mapper>

@@ -223,6 +223,23 @@
 
     </select>
 
+    <!-- 须在事务中调用，锁持有到事务结束 -->
+    <select id="selectInboundStatusForUpdate"
+            resultType="java.lang.Integer">
 
+        SELECT inbound_status
+        FROM inbound_order
+        WHERE id = #{id}
+        FOR UPDATE
+
+    </select>
+
+    <update id="updateInboundStatus">
+
+        UPDATE inbound_order
+        SET inbound_status = #{status}
+        WHERE id = #{id}
+
+    </update>
 
 </mapper>
