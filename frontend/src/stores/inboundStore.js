@@ -1,26 +1,10 @@
+import { decimal, formatQuantity, units } from '../utils/quantity.js'
+
 const STORAGE_KEY = 'wms-inbound-practice-v3'
 
 export const RECEIPT_STATUS = { 0: '未完成', 1: '已完成'}
 export const PUTAWAY_STATUS = { 1: '上架中', 2: '已完成' }
 
-export function units(value) {
-  const text = String(value ?? '').trim()
-  if (!/^\d{1,15}(?:\.\d{1,3})?$/.test(text)) {
-    throw new Error('数量必须是非负数，最多 15 位整数、3 位小数；不接受空值或科学计数法。')
-  }
-  const [integer, fraction = ''] = text.split('.')
-  return BigInt(integer) * 1000n + BigInt(fraction.padEnd(3, '0'))
-}
-
-function decimal(value) {
-  if (value < 0n) throw new Error('数量不能为负数。')
-  return `${value / 1000n}.${String(value % 1000n).padStart(3, '0')}`
-}
-
-export function formatQuantity(value) {
-  const number = units(value)
-  return `${String(number / 1000n).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${String(number % 1000n).padStart(3, '0')}`
-}
 
 function total(items, field) {
   return decimal(items.reduce((sum, item) => sum + units(item[field] || '0'), 0n))
@@ -301,208 +285,6 @@ class DemoStore {
   }
 }
 
-class ReceiptService extends DemoStore {
-  list() {
-    const db = this.read()
-    return db.receipts.map(row => {
-      const inbound = find(db.inbounds, row.inboundOrderId)
-      const warehouse = find(db.warehouses, row.warehouseId)
-      const items = row.items.map(item => {
-        const source = inboundItem(db, item.inboundOrderItemId).item
-        return { ...item, sku: source.sku, skuName: source.skuName }
-      })
-      // 按来源入库单每一行展示：预计收货量 + 本收货单实际收货量
-      const lines = inbound.items.map(src => {
-        const received = row.items
-          .filter(item => item.inboundOrderItemId === src.id)
-          .reduce((sum, item) => sum + units(item.receivedQty), 0n)
-        return {
-          inboundOrderItemId: src.id,
-          skuId: src.skuId,
-          planQty: src.planQty,
-          receivedQty: decimal(received),
-        }
-      })
-
-      return {
-        ...row,
-        inboundOrderNo: inbound.inboundOrderNo,
-        warehouseName: warehouse.warehouseName,
-        items,
-        lines,
-        skuCount: new Set(lines.map(line => line.skuId)).size,
-        totalQty: total(row.items, 'receivedQty'),
-      }
-    }).sort((a, b) => b.createdTime.localeCompare(a.createdTime) || b.id - a.id)
-  }
-
-  sources() {
-    const db = this.read()
-    return db.inbounds
-        .filter(order =>
-            [1, 2].includes(order.status) &&
-            !db.receipts.some(r => r.inboundOrderId === order.id)
-        )
-        .map(order => ({
-          id: order.id,
-          label: order.inboundOrderNo,
-          warehouseId: order.warehouseId,
-        }))
-  }
-
-  // 检查入库单能否新建收货单；可以则返回 { ok: true, id }，否则返回原因
-  checkSource(inboundOrderNo) {
-    const db = this.read()
-    const no = String(inboundOrderNo || '').trim().toUpperCase()
-    const order = db.inbounds.find(o => o.inboundOrderNo.toUpperCase() === no)
-
-    if (!order) return { ok: false, reason: `入库单 ${inboundOrderNo} 不存在。` }
-
-    const existing = db.receipts.find(r => r.inboundOrderId === order.id)
-    if (existing) {
-      return { ok: false, reason: `入库单 ${order.inboundOrderNo} 已有收货单 ${existing.receiptOrderNo}，请在列表中继续处理。` }
-    }
-    if ([3, 4, 5].includes(order.status)) {
-      return { ok: false, reason: `入库单 ${order.inboundOrderNo} 已全部收货，无需再建收货单。` }
-    }
-    if (![1, 2].includes(order.status)) {
-      return { ok: false, reason: `入库单 ${order.inboundOrderNo} 当前状态不允许收货。` }
-    }
-    return { ok: true, id: order.id }
-  }
-
-  form(sourceId) {
-    const db = this.read()
-    const source = find(db.inbounds, Number(sourceId), '来源入库单')
-    if (![1, 2].includes(source.status)) {
-      throw new Error('只能从待收货或部分收货的入库单创建收货单。')
-    }
-
-    const warehouse = find(db.warehouses, source.warehouseId)
-    const items = source.items.map(item => {
-      const planned = units(item.planQty)
-      const received = units(item.receivedQty)
-      return {
-        sourceItemId: item.id,
-        inboundOrderItemId: item.id,
-        skuId: item.skuId,
-        sourceQty: decimal(planned),
-        priorQty: decimal(received),
-        maxQty: decimal(planned - received),
-        qty: '0.000',
-      }
-    }).filter(item => units(item.maxQty) > 0n)
-
-    return {
-      id: null,
-      sourceId: source.id,
-      sourceLabel: source.inboundOrderNo,
-      documentNo: '确认时生成',
-      warehouseId: source.warehouseId,
-      warehouseName: warehouse.warehouseName,
-      remark: '',
-      items,
-    }
-  }
-
-  save(form, user = { id: 12, name: '演示操作员' }) {
-    return this.transaction(db => {
-      const source = find(db.inbounds, Number(form.sourceId), '来源入库单')
-
-      if (db.receipts.some(r => r.inboundOrderId === source.id)) {
-        throw new Error('该入库单已有收货单，请在列表中继续收货。')
-      }
-
-      const seen = new Set()
-      const lines = []
-      for (const input of form.items) {
-        if (seen.has(input.sourceItemId)) throw new Error('同一收货单不允许重复来源明细。')
-        seen.add(input.sourceItemId)
-
-        const src = find(source.items, input.sourceItemId, '来源明细')
-        const qty = String(input.qty ?? '').trim() === '' ? 0n : units(input.qty)
-        if (qty === 0n) continue
-
-        const available = units(src.planQty) - units(src.receivedQty)
-        if (qty > available) {
-          throw new Error(`SKU ${src.skuId} 超过当前可收货数量 ${formatQuantity(decimal(available))}。`)
-        }
-
-        lines.push({
-          id: ++db.nextId,
-          inboundOrderItemId: src.id,
-          skuId: src.skuId,
-          receivedQty: decimal(qty),
-        })
-      }
-
-      if (String(form.remark || '').length > 500) throw new Error('备注最多 500 字。')
-
-      const time = now()
-      const id = ++db.nextId
-      const row = {
-        id,
-        receiptOrderNo: `RC${time.slice(0, 10).replaceAll('-', '')}${String(id).padStart(6, '0')}`,
-        inboundOrderId: source.id,
-        warehouseId: source.warehouseId,
-        receiverId: user.id,
-        receiverName: user.name,
-        remark: String(form.remark || '').trim(),
-        createdTime: time,
-        updatedTime: time,
-        receivedTime: null,
-        items: lines.map(item => ({ ...item, receiptOrderId: id })),
-      }
-
-      // 推算收货单状态：所有入库明细都收齐则已完成
-      const allDone = source.items.every(item => {
-        const thisQty = lines.find(l => l.inboundOrderItemId === item.id)
-        const added = thisQty ? units(thisQty.receivedQty) : 0n
-        return units(item.receivedQty) + added >= units(item.planQty)
-      })
-      row.status = allDone ? 1 : 0
-      // 仅已完成的收货单记录完成时间
-      if (allDone) row.receivedTime = time
-
-      db.receipts.push(row)
-      return row
-    })
-  }
-
-  // 一键补齐来源入库单剩余数量，并把收货单标记为已完成
-  confirmAll(receiptId) {
-    return this.transaction(db => {
-      const row = find(db.receipts, receiptId, '收货单')
-      if (row.status !== 0) throw new Error('该收货单已完成，无需重复确认。')
-
-      const source = find(db.inbounds, row.inboundOrderId, '来源入库单')
-      for (const src of source.items) {
-        const remaining = units(src.planQty) - units(src.receivedQty)
-        if (remaining <= 0n) continue
-
-        const line = row.items.find(item => item.inboundOrderItemId === src.id)
-        if (line) {
-          line.receivedQty = decimal(units(line.receivedQty) + remaining)
-        } else {
-          row.items.push({
-            id: ++db.nextId,
-            receiptOrderId: row.id,
-            inboundOrderItemId: src.id,
-            skuId: src.skuId,
-            receivedQty: decimal(remaining),
-          })
-        }
-      }
-
-      const time = now()
-      row.status = 1
-      row.updatedTime = time
-      row.receivedTime = time
-      return row
-    })
-  }
-
-}
 
 class PutawayService extends DemoStore {
   list() {
@@ -677,9 +459,6 @@ class PutawayService extends DemoStore {
   }
 }
 
-export function createReceiptService(storage) {
-  return new ReceiptService(storage)
-}
 
 export function createPutawayService(storage) {
   return new PutawayService(storage)

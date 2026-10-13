@@ -43,20 +43,20 @@ const menuGroups = [
     label: '库存管理',
     icon: Boxes,
     children: [
-      { label: '当前库存' },
-      { label: '库存流水' },
+      { label: '当前库存', path: '/inventory/stock' },
+      { label: '库存流水', path: '/inventory/transactions' },
     ],
   },
   {
     label: '基础数据',
     icon: Settings2,
-    children: [{ label: '仓库管理' }],
+    children: [{ label: '仓库管理', path: '/basic/warehouses' }],
   },
   {
     label: '个人信息',
     icon: UserRound,
     children: [
-      { label: '我的信息' },
+      { label: '我的信息', path: '/profile' },
       { label: '退出登录', action: 'logout' },
     ],
   },

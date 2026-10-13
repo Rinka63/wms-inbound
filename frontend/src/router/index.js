@@ -6,7 +6,11 @@ import Layout from '../views/Layout.vue'
 import DashBoard from '../views/DashBoard.vue'
 import InboundOrder from '../views/InboundOrder.vue'
 import ReceiptOrder from '../views/ReceiptOrder.vue'
-import PutawayOrder from "../views/PutawayOrder.vue";
+import PutawayOrder from "../views/PutawayOrder.vue"
+import Inventory from '../views/Inventory.vue'
+import InventoryTransaction from '../views/InventoryTransaction.vue'
+import Warehouse from '../views/Warehouse.vue'
+import Profile from '../views/Profile.vue';
 
 const router = createRouter({
     history: createWebHashHistory(),
@@ -44,7 +48,27 @@ const router = createRouter({
                     path: 'inbound/putaway',
                     component: PutawayOrder,
                     meta: {title: '上架管理'}
-                }
+                },
+                {
+                    path: 'inventory/stock',
+                    component: Inventory,
+                    meta: { title: '当前库存' },
+                },
+                {
+                    path: 'inventory/transactions',
+                    component: InventoryTransaction,
+                    meta: { title: '库存流水' },
+                },
+                {
+                    path: 'basic/warehouses',
+                    component: Warehouse,
+                    meta: { title: '仓库管理' },
+                },
+                {
+                    path: 'profile',
+                    component: Profile,
+                    meta: { title: '我的信息' },
+                },
             ],
         },
     ],
