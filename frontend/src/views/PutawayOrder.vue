@@ -29,6 +29,7 @@ const expanded = ref(null)
 
 const createForm = ref(null)
 const editor = ref(null)
+const sourceKeyword = ref('')
 const sourceOptions = ref([])
 
 const message = ref('')
@@ -69,17 +70,17 @@ function matchesCreatedRange(value) {
 const filteredOrders = computed(() => {
   const kw = keyword.value.trim().toLowerCase()
   return orders.value.filter(row =>
-    (!kw || [row.putawayOrderNo, row.inboundOrderNo].some(v =>
-      String(v || '').toLowerCase().includes(kw)
-    )) &&
-    (!warehouse.value || row.warehouseId === Number(warehouse.value)) &&
-    (statusFilter.value === '' || String(row.status) === statusFilter.value) &&
-    matchesCreatedRange(row.createdTime)
+      (!kw || [row.putawayOrderNo, row.inboundOrderNo].some(v =>
+          String(v || '').toLowerCase().includes(kw)
+      )) &&
+      (!warehouse.value || row.warehouseId === Number(warehouse.value)) &&
+      (statusFilter.value === '' || String(row.status) === statusFilter.value) &&
+      matchesCreatedRange(row.createdTime)
   )
 })
 
 const totalPages = computed(() =>
-  Math.max(1, Math.ceil(filteredOrders.value.length / pageSize.value))
+    Math.max(1, Math.ceil(filteredOrders.value.length / pageSize.value))
 )
 
 const paginatedOrders = computed(() => {
@@ -96,10 +97,10 @@ watch(totalPages, pages => {
 })
 
 const createInputTotal = computed(() =>
-  (createForm.value?.items || []).reduce(
-    (sum, item) => sum + (Number(item.qty) || 0),
-    0
-  )
+    (createForm.value?.items || []).reduce(
+        (sum, item) => sum + (Number(item.qty) || 0),
+        0
+    )
 )
 
 function notify(text, error = false) {
@@ -130,10 +131,21 @@ function fillRemaining() {
   createForm.value?.items?.forEach(item => { item.qty = item.maxQty })
 }
 
+function emptyCreateForm() {
+  return { id: null, sourceId: null, items: [], remark: '', warehouseName: '' }
+}
+
+function resetSourceOnInput() {
+  if (createForm.value?.id) return
+  createForm.value = emptyCreateForm()
+  createError.value = ''
+}
+
 async function openNewEditor() {
   try {
     loadOrders()
-    createForm.value = { id: null, sourceId: null, items: [], remark: '', warehouseName: '' }
+    sourceKeyword.value = ''
+    createForm.value = emptyCreateForm()
     createError.value = ''
     await nextTick()
     if (editor.value && !editor.value.open) editor.value.showModal()
@@ -142,10 +154,11 @@ async function openNewEditor() {
   }
 }
 
-async function openContinueEditor(id) {
+async function openContinueEditor(row) {
   try {
     loadOrders()
-    createForm.value = service.form(null, id)
+    sourceKeyword.value = row.receiptOrderNo || ''
+    createForm.value = service.form(null, row.id)
     createError.value = ''
     await nextTick()
     if (editor.value && !editor.value.open) editor.value.showModal()
@@ -154,16 +167,33 @@ async function openContinueEditor(id) {
   }
 }
 
-async function changeSource(event) {
-  const sourceId = Number(event.target.value)
-  if (!sourceId) {
-    createForm.value = { id: null, sourceId: null, items: [], remark: '', warehouseName: '' }
+function loadSource() {
+  if (createForm.value?.id) return
+  const kw = sourceKeyword.value.trim().toLowerCase()
+  if (!kw) {
+    createForm.value = emptyCreateForm()
+    createError.value = '请输入收货单号'
     return
   }
   try {
-    createForm.value = service.form(sourceId)
+    // 沿用上架服务筛选出的可用收货单，按单号精确匹配。
+    sourceOptions.value = service.sources()
+    const source = sourceOptions.value.find(item => {
+      const receiptNo = String(item.receiptOrderNo || item.orderNo || item.label || '')
+          .trim()
+          .split(/\s*(?:[\/|｜·（(，,]|\s+[-–—]\s+)\s*/)[0]
+          .replace(/^收货单(?:号)?\s*[:：]?\s*/, '')
+      return receiptNo.toLowerCase() === kw
+    })
+    if (!source) {
+      createForm.value = emptyCreateForm()
+      createError.value = '未找到可上架的收货单，请检查收货单号及剩余可上架数量。'
+      return
+    }
+    createForm.value = service.form(Number(source.id))
     createError.value = ''
   } catch (error) {
+    createForm.value = emptyCreateForm()
     createError.value = error.message
   }
 }
@@ -172,6 +202,7 @@ function closeEditor() {
   editor.value?.close()
   createForm.value = null
   createError.value = ''
+  sourceKeyword.value = ''
 }
 
 function saveEditor() {
@@ -188,8 +219,8 @@ function saveEditor() {
     expanded.value = row.id
     loadOrders()
     notify(row.status === 2
-      ? '上架单已完成；库存已更新。'
-      : '上架单已保存为上架中。'
+        ? '上架单已完成；库存已更新。'
+        : '上架单已保存为上架中。'
     )
   } catch (error) {
     createError.value = error.message
@@ -358,7 +389,7 @@ onBeforeUnmount(() => {
                       v-if="row.status === 1"
                       class="inbound-link-btn"
                       type="button"
-                      @click="openContinueEditor(row.id)"
+                      @click="openContinueEditor(row)"
                   >
                     继续上架单
                   </button>
@@ -456,30 +487,37 @@ onBeforeUnmount(() => {
           <div class="inbound-editor-grid">
             <div class="inbound-field">
               <label for="putaway-source">来源收货单</label>
-              <select
-                  id="putaway-source"
-                  :value="createForm?.sourceId || ''"
-                  :disabled="Boolean(createForm?.id)"
-                  @change="changeSource"
-              >
-                <option value="">请选择来源收货单</option>
-                <option
-                    v-for="item in sourceOptions"
-                    :key="item.id"
-                    :value="item.id"
-                >
-                  {{ item.label }}
-                </option>
-              </select>
+              <div class="inbound-source-row">
+                <input
+                    id="putaway-source"
+                    v-model.trim="sourceKeyword"
+                    class="inbound-editor-input"
+                    :readonly="Boolean(createForm.id)"
+                    placeholder="输入收货单号"
+                    @input="resetSourceOnInput"
+                    @keydown.enter.prevent="loadSource"
+                />
+                <button
+                    v-if="!createForm.id"
+                    type="button"
+                    class="inbound-btn"
+                    :disabled="createBusy"
+                    @click="loadSource"
+                >查询</button>
+              </div>
             </div>
 
-            <div class="inbound-field">
+            <div v-if="createForm.sourceId" class="inbound-field">
               <label>仓库（由来源决定）</label>
-              <div class="inbound-readonly">{{ createForm?.warehouseName || '—' }}</div>
+              <div class="inbound-readonly">{{ createForm.warehouseName }}</div>
             </div>
           </div>
 
-          <template v-if="createForm?.items?.length > 0">
+          <template v-if="createForm.sourceId">
+            <div class="inbound-editor-callout">
+              填写本次实际上架数量和目标库位。空白或 0 表示本次不处理该行。
+            </div>
+
             <div class="inbound-table-wrap inbound-editor-table-wrap">
               <table class="inbound-table inbound-editor-table">
                 <thead>
@@ -520,32 +558,34 @@ onBeforeUnmount(() => {
                     >
                   </td>
                 </tr>
+                <tr v-if="!createForm.items.length">
+                  <td colspan="6" class="inbound-empty">来源已无剩余可上架数量。</td>
+                </tr>
                 </tbody>
               </table>
             </div>
 
             <div class="inbound-fill-row">
               <span>数量精度为 0.001；提交时重新校验可用数量。</span>
-              <button class="inbound-link-btn" type="button" @click="fillRemaining">
-                填入全部剩余
-              </button>
+              <button
+                  class="inbound-link-btn"
+                  type="button"
+                  :disabled="!createForm.items.length"
+                  @click="fillRemaining"
+              >填入全部剩余</button>
+            </div>
+
+            <div class="inbound-field inbound-editor-remark">
+              <label for="putaway-remark">备注（选填，最多 500 字）</label>
+              <textarea
+                  id="putaway-remark"
+                  v-model="createForm.remark"
+                  rows="2"
+                  maxlength="500"
+                  placeholder="补充本次上架说明"
+              />
             </div>
           </template>
-
-          <template v-else-if="createForm?.sourceId">
-            <div class="inbound-editor-callout">来源已无剩余可上架数量，请重新选择。</div>
-          </template>
-
-          <div class="inbound-field inbound-editor-remark">
-            <label for="putaway-remark">备注（选填，最多 500 字）</label>
-            <textarea
-                id="putaway-remark"
-                v-model="createForm.remark"
-                rows="2"
-                maxlength="500"
-                placeholder="补充本次上架说明"
-            />
-          </div>
 
           <div v-if="createError" class="inbound-editor-error" role="alert">
             {{ createError }}
@@ -1029,19 +1069,24 @@ onBeforeUnmount(() => {
   font-weight: 600;
 }
 
-.inbound-field select {
-  width: 100%;
-  padding: 10px 11px;
-  border: 1px solid var(--hairline);
-  border-radius: 10px;
-  background: var(--canvas);
-  color: var(--ink);
-  outline: none;
-  font-size: 13px;
+.inbound-source-row {
+  display: flex;
+  gap: 8px;
 }
 
-.inbound-field select:focus {
-  border-color: var(--ink);
+.inbound-source-row .inbound-editor-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.inbound-source-row .inbound-btn {
+  min-height: 42px;
+  white-space: nowrap;
+}
+
+.inbound-editor-input[readonly] {
+  background: var(--surface-soft);
+  color: var(--muted);
 }
 
 .inbound-readonly {
