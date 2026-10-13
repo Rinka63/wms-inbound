@@ -2493,6 +2493,7 @@ onBeforeUnmount(() => {
   line-height: 1.6;
 }
 
+
 .inbound-pagination {
   display: flex;
   align-items: center;
@@ -2503,7 +2504,11 @@ onBeforeUnmount(() => {
 
 .inbound-pagination button {
   padding: 6px 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  background: var(--canvas);
   cursor: pointer;
+  font-size: 13px;
 }
 
 .inbound-pagination button:disabled {
@@ -2511,8 +2516,14 @@ onBeforeUnmount(() => {
   opacity: .5;
 }
 
+
 .inbound-pagination select {
   padding: 6px 8px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  background: var(--canvas);
+  font: inherit;
+  font-size: 13px;
 }
 
 @media (max-width: 1100px) {
