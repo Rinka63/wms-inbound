@@ -8,7 +8,7 @@
       <button class="inbound-btn" @click="restoreDemo">恢复演示数据</button>
     </div>
 
-    <section class="inbound-page panel">
+    <section >
       <div class="profile-grid">
         <div class="profile-card">
           <div class="card-title">账号资料</div>
@@ -33,10 +33,6 @@
             <strong>{{ loginRecords[0].time }}</strong>
           </div>
 
-          <div class="copy-actions">
-            <button class="inbound-btn" @click="copyText(profile.username)">复制账号</button>
-            <button class="inbound-btn" @click="copyText(profile.userId)">复制用户ID</button>
-          </div>
         </div>
 
         <div class="profile-card">
@@ -65,7 +61,7 @@
           </button>
         </div>
 
-        <div class="profile-card">
+<!--        <div class="profile-card">
           <div class="card-title">修改密码（模拟）</div>
 
           <label>当前密码</label>
@@ -87,7 +83,7 @@
           <button class="inbound-btn primary" @click="changePassword">
             修改密码
           </button>
-        </div>
+        </div>-->
       </div>
 
       <div class="table-wrap">

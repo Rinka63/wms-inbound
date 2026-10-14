@@ -1,14 +1,15 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { createPutawayService, STORAGE_KEY } from '../stores/inboundStore.js'
+import { useUserStore } from '../stores/user.js'
 import { units } from '../utils/quantity.js'
+
+const userStore = useUserStore()
 
 /**
  * 当前库存页面。
  *
  * 数据读取 -> buildInventoryGroups() -> 筛选/分页 -> 表格与 CSV。
- * 数据层和展示层保持分离，之后替换成库存 API 时，只需要改 readInventorySnapshot()。
- * 当前版本复用 PutawayOrder.vue 已在使用的本地演示数据，绝不从待上架单重算库存。
+ * 数据层和展示层保持分离，后端 API 替换时只需改 readInventorySnapshot()。
  */
 
 // ------------------------------ 数据读取 ---------------------------------
@@ -17,18 +18,38 @@ const loading = ref(false)
 const loadError = ref('')
 const lastUpdated = ref('')
 
-function readInventorySnapshot() {
-  const db = createPutawayService(window.localStorage).read()
-  for (const field of ['warehouses', 'locations', 'inbounds', 'inventory']) {
-    if (!Array.isArray(db[field])) {
-      throw new Error(`库存数据缺少 ${field}，请检查本地数据版本。`)
+async function request(url) {
+  const response = await fetch(url, {
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${userStore.token}`,
+    },
+  })
+  const text = await response.text()
+  let result = null
+  if (text) {
+    try {
+      result = JSON.parse(text)
+    } catch {
+      result = null
     }
   }
+  if (!response.ok) {
+    throw new Error(result?.message || `请求失败 (${response.status})`)
+  }
+  return result
+}
+
+async function readInventorySnapshot() {
+  const [warehouses, inventory] = await Promise.all([
+    request('/warehouses'),
+    request('/inventory'),
+  ])
   return {
-    warehouses: db.warehouses,
-    locations: db.locations,
-    inbounds: db.inbounds,
-    inventory: db.inventory,
+    warehouses,
+    locations: [],
+    inbounds: [],
+    inventory,
   }
 }
 
@@ -244,20 +265,17 @@ function exportCsv() {
   notify(`已导出 ${filteredGroups.value.length} 个 SKU 的库存明细`)
 }
 
-function onStorageChange(event) {
-  if (event.key === STORAGE_KEY || event.key === null) loadInventory()
-}
+// ------------------------------ 生命周期 ----------------------------------
 function onVisibilityChange() {
   if (document.visibilityState === 'visible') loadInventory()
 }
 
 onMounted(() => {
   loadInventory()
-  window.addEventListener('storage', onStorageChange)
   document.addEventListener('visibilitychange', onVisibilityChange)
 })
 onBeforeUnmount(() => {
-  window.removeEventListener('storage', onStorageChange)
+  document.removeEventListener('visibilitychange', onVisibilityChange)
   document.removeEventListener('visibilitychange', onVisibilityChange)
   clearTimeout(messageTimer)
 })

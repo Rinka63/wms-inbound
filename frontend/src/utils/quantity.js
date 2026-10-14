@@ -23,5 +23,18 @@ export function decimal(value) {
  */
 export function formatQuantity(value) {
     const number = units(value)
-    return `${String(number / 1000n).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${String(nu)}`
+    return `${String(number / 1000n).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${String(number % 1000n).padStart(3, '0')}`
+}
+
+/**
+ * 格式化显示（简化版，用于页面展示）
+ */
+export function formatQty(value) {
+    const text = String(value ?? '').trim()
+    if (!text || text === '0' || text === '0.000') return '—'
+    try {
+        return decimal(units(text))
+    } catch {
+        return text
+    }
 }

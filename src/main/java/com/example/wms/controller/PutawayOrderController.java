@@ -43,7 +43,6 @@ public class PutawayOrderController {
 
         CreatePutawayOrderResponse response =
                 putawayOrderService.save(null, request);
-
         return ResponseEntity.ok(response);
     }
 
@@ -60,16 +59,5 @@ public class PutawayOrderController {
                 putawayOrderService.save(id, request);
 
         return ResponseEntity.ok(response);
-    }
-
-    /**
-     * 完成上架：无请求体，成功返回 200 空响应；不入账
-     */
-    @PostMapping("/{id}/complete")
-    public ResponseEntity<Void> completePutawayOrder(@PathVariable Long id) {
-
-        putawayOrderService.completePutawayOrder(id);
-
-        return ResponseEntity.ok().build();
     }
 }

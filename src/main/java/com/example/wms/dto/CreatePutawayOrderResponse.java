@@ -12,4 +12,6 @@ public class CreatePutawayOrderResponse {
     private Long id;
 
     private String putawayOrderNo;
+
+    private Integer status;
 }

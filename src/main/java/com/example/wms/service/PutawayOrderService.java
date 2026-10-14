@@ -81,7 +81,7 @@ public class PutawayOrderService {
 
     /**
      * 新建（id == null）与继续上架（id != null）共用：
-     * 每次登记都追加明细并立即入账，上架单保持上架中
+     * 每次登记都追加明细并立即入账，全部上满时自动完成
      */
     @Transactional
     public CreatePutawayOrderResponse save(Long id, CreatePutawayOrderRequest request) {
@@ -143,6 +143,7 @@ public class PutawayOrderService {
 
         List<PutawayOrderItem> items =
                 toItems(order.getId(), warehouseId, sources, request.getItems()).stream()
+                        .filter(item -> item.getPutawayQty().compareTo(BigDecimal.ZERO) > 0)
                         .sorted(Comparator.comparing(PutawayOrderItem::getLocationId)
                                 .thenComparing(PutawayOrderItem::getSkuId))
                         .toList();
@@ -152,31 +153,25 @@ public class PutawayOrderService {
         }
 
         /*
-         * 5. 重算入库单状态：全部上满为已完成，否则部分上架
+         * 5. 重算入库单状态和上架单状态：全部上满时两个单据都完成
          *    （toItems 已把本次数量计入 sources 的 putawayQty）
          */
         boolean allPutaway = sources.stream()
                 .allMatch(s -> s.getPutawayQty().compareTo(s.getReceivedQty()) >= 0);
 
-        InboundOrderStatus next = allPutaway
-                ? InboundOrderStatus.COMPLETED
-                : InboundOrderStatus.PART_PUTAWAY;
-
-        inboundOrderMapper.updateInboundStatus(inboundOrderId, next.getCode());
-
-        return new CreatePutawayOrderResponse(order.getId(), order.getPutawayOrderNo());
-    }
-
-
-    /**
-     * 完成上架：只改状态和完成时间；不动明细、库存、流水和入库单状态
-     */
-    @Transactional
-    public void completePutawayOrder(Long id) {
-
-        if (putawayOrderMapper.completePutawayOrder(id) == 0) {
-            throw new BusinessException("上架单不存在或已完成");
+        if (allPutaway) {
+            inboundOrderMapper.updateInboundStatus(inboundOrderId, InboundOrderStatus.COMPLETED.getCode());
+            putawayOrderMapper.completePutawayOrder(order.getId());
+            order.setPutawayStatus(PutawayOrderStatus.COMPLETED.getCode());
+        } else {
+            inboundOrderMapper.updateInboundStatus(inboundOrderId, InboundOrderStatus.PART_PUTAWAY.getCode());
         }
+
+        return new CreatePutawayOrderResponse(
+                order.getId(),
+                order.getPutawayOrderNo(),
+                order.getPutawayStatus()
+        );
     }
 
 

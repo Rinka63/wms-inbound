@@ -1,36 +1,28 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useUserStore } from '../stores/user'
-import {
-  PUTAWAY_STATUS,
-  createPutawayService,
-} from '../stores/inboundStore.js'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useUserStore } from '../stores/user.js'
+import { PUTAWAY_STATUS } from '../stores/inboundStore.js'
+import { decimal, formatQty, units } from '../utils/quantity.js'
 
 const userStore = useUserStore()
 
-const statusTabs = [
-  { label: '全部', value: '' },
-  { label: '上架中', value: '1' },
-  { label: '已完成', value: '2' },
-]
-
-const putawayBadgeClass = { 1: 's4', 2: 's5' }
-
+// ========== 状态管理 ==========
 const orders = ref([])
 const ordersLoading = ref(false)
 const ordersError = ref('')
-const db = ref({ warehouses: [] })
+const warehouses = ref([])
 
 const keyword = ref('')
 const warehouse = ref('')
 const createdRange = ref('all')
 const statusFilter = ref('')
+
 const expanded = ref(null)
 
 const createForm = ref(null)
 const editor = ref(null)
 const sourceKeyword = ref('')
-const sourceOptions = ref([])
+const sourceLoading = ref(false)
 
 const message = ref('')
 const messageError = ref(false)
@@ -38,41 +30,55 @@ const createError = ref('')
 const createBusy = ref(false)
 
 const currentPage = ref(1)
-const pageSize = ref(10)
+const pageSize = ref(20)
 
-let service
-let timer
+let timer = null
 
-function formatQty(value) {
-  return Number(value || 0).toLocaleString('zh-CN', {
-    minimumFractionDigits: 3,
-    maximumFractionDigits: 3,
-  })
-}
+const INBOUND_RECEIVED = 3       // 允许新建
+const INBOUND_PART_PUTAWAY = 4   // 允许继续上架
 
-function matchesCreatedRange(value) {
-  if (createdRange.value === 'all') return true
-  if (!value) return true
-  const created = new Date(String(value).replace(' ', 'T'))
-  if (Number.isNaN(created.getTime())) return true
-  const now = new Date()
-  if (createdRange.value === 'today') {
-    const start = new Date(now)
-    start.setHours(0, 0, 0, 0)
-    return created >= start
+
+// ========== 工具函数 ==========
+
+/**
+ * 统一请求：带 token；成功时空 body 返回 null；失败时抛出后端的 message
+ */
+async function request(url, { method = 'GET', body } = {}) {
+  const headers = {
+    Accept: 'application/json',
+    Authorization: `Bearer ${userStore.token}`,
   }
-  const days = createdRange.value === '7d' ? 7 : 30
-  const boundary = new Date(now)
-  boundary.setDate(boundary.getDate() - days)
-  return created >= boundary
+  if (body !== undefined) headers['Content-Type'] = 'application/json'
+
+  const response = await fetch(url, {
+    method,
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+
+  const text = await response.text()
+  let result = null
+  if (text) {
+    try {
+      result = JSON.parse(text)
+    } catch {
+      result = null
+    }
+  }
+
+  if (!response.ok) {
+    throw new Error(result?.message || `请求失败 (${response.status})`)
+  }
+  return result
 }
+
+
+// ========== 计算属性 ==========
 
 const filteredOrders = computed(() => {
   const kw = keyword.value.trim().toLowerCase()
   return orders.value.filter(row =>
-      (!kw || [row.putawayOrderNo, row.inboundOrderNo].some(v =>
-          String(v || '').toLowerCase().includes(kw)
-      )) &&
+      (!kw || String(row.inboundOrderNo || '').toLowerCase().includes(kw)) &&
       (!warehouse.value || row.warehouseId === Number(warehouse.value)) &&
       (statusFilter.value === '' || String(row.status) === statusFilter.value) &&
       matchesCreatedRange(row.createdTime)
@@ -88,36 +94,44 @@ const paginatedOrders = computed(() => {
   return filteredOrders.value.slice(start, start + pageSize.value)
 })
 
-watch([keyword, warehouse, createdRange, statusFilter, pageSize], () => {
-  currentPage.value = 1
-})
-
-watch(totalPages, pages => {
-  if (currentPage.value > pages) currentPage.value = pages
-})
-
-const createInputTotal = computed(() =>
-    (createForm.value?.items || []).reduce(
-        (sum, item) => sum + (Number(item.qty) || 0),
-        0
-    )
-)
-
-function notify(text, error = false) {
-  message.value = text
-  messageError.value = error
-  clearTimeout(timer)
-  timer = setTimeout(() => { message.value = '' }, 5500)
-}
-
-function loadOrders() {
+const createInputTotal = computed(() => {
   try {
-    db.value = service.read()
-    orders.value = service.list()
-    sourceOptions.value = service.sources()
+    const total = (createForm.value?.items || []).reduce((sum, item) => {
+      const text = String(item.qty ?? '').trim()
+      return text ? sum + units(text) : sum
+    }, 0n)
+    // units() 返回放大 1000 倍的整数；展示前还原成实际数量。
+    return decimal(total)
+  } catch {
+    return null
+  }
+})
+
+const createBusyOrLoading = computed(() => createBusy.value || sourceLoading.value)
+
+
+// ========== 列表操作 ==========
+
+async function loadOrders() {
+  ordersLoading.value = true
+  ordersError.value = ''
+  try {
+    orders.value = await request('/inbound/putaways')
+    warehouses.value = await request('/warehouses')
   } catch (error) {
     ordersError.value = error.message
+  } finally {
+    ordersLoading.value = false
   }
+}
+
+function matchesCreatedRange(timestamp) {
+  if (!timestamp || createdRange.value === 'all') return true
+  const date = new Date(timestamp)
+  const now = Date.now()
+  const day = 86400000
+  const ranges = { today: day, week: 7 * day, month: 30 * day }
+  return ranges[createdRange.value] && now - date.getTime() < ranges[createdRange.value]
 }
 
 function resetFilters() {
@@ -125,103 +139,174 @@ function resetFilters() {
   warehouse.value = ''
   createdRange.value = 'all'
   statusFilter.value = ''
+  currentPage.value = 1
 }
 
 function fillRemaining() {
-  createForm.value?.items?.forEach(item => { item.qty = item.maxQty })
+  createForm.value?.items?.forEach(item => {
+    if (units(item.maxQty) > 0n) item.qty = item.maxQty
+  })
 }
+
+
+// ========== 表单辅助 ==========
 
 function emptyCreateForm() {
-  return { id: null, sourceId: null, items: [], remark: '', warehouseName: '' }
+  return {
+    id: null,
+    sourceId: null,
+    warehouseName: '',
+    remark: '',
+    locations: [],
+    items: [],
+  }
 }
 
-function resetSourceOnInput() {
-  if (createForm.value?.id) return
-  createForm.value = emptyCreateForm()
-  createError.value = ''
+function buildForm(detail, locations) {
+  return {
+    ...emptyCreateForm(),
+    sourceId: detail.id,
+    warehouseName: detail.warehouseName,
+    locations,
+    items: detail.items
+        .map(item => {
+          const received = units(item.receivedQty)
+          const prior = units(item.putawayQty)
+          return {
+            sourceItemId: item.id,
+            skuId: item.skuId,
+            sourceQty: decimal(received),
+            priorQty: decimal(prior),
+            maxQty: decimal(received - prior),
+            qty: '',
+            locationCode: '',
+          }
+        })
+        .filter(item => units(item.maxQty) > 0n),
+  }
 }
+
+async function loadInbound(inboundOrderId, expectedStatus, message) {
+  const detail = await request(`/inbound/orders/${inboundOrderId}`)
+  if (detail.status !== expectedStatus) throw new Error(message)
+  const locations = await request(`/warehouses/${detail.warehouseId}/locations`)
+  return buildForm(detail, locations)
+}
+
+function isCurrentSource(kw) {
+  return createForm.value !== null && sourceKeyword.value.trim().toUpperCase() === kw
+}
+
+
+// ========== 弹窗操作 ==========
 
 async function openNewEditor() {
-  try {
-    loadOrders()
-    sourceKeyword.value = ''
-    createForm.value = emptyCreateForm()
-    createError.value = ''
-    await nextTick()
-    if (editor.value && !editor.value.open) editor.value.showModal()
-  } catch (error) {
-    notify(error.message, true)
-  }
+  sourceKeyword.value = ''
+  createForm.value = emptyCreateForm()
+  createError.value = ''
+  await nextTick()
+  if (editor.value && !editor.value.open) editor.value.showModal()
 }
 
 async function openContinueEditor(row) {
+  if (sourceLoading.value) return
+  sourceKeyword.value = row.receiptOrderNo || ''
+  createForm.value = { ...emptyCreateForm(), id: row.id }
+  createError.value = ''
+  await nextTick()
+  if (editor.value && !editor.value.open) editor.value.showModal()
+
+  sourceLoading.value = true
   try {
-    loadOrders()
-    sourceKeyword.value = row.receiptOrderNo || ''
-    createForm.value = service.form(null, row.id)
-    createError.value = ''
-    await nextTick()
-    if (editor.value && !editor.value.open) editor.value.showModal()
+    const form = await loadInbound(row.inboundOrderId, INBOUND_PART_PUTAWAY,
+        '入库单状态已变化，请刷新列表')
+    if (createForm.value?.id !== row.id) return
+    createForm.value = { ...form, id: row.id, remark: row.remark || '' }
   } catch (error) {
-    notify(error.message, true)
+    if (createForm.value?.id === row.id) createError.value = error.message
+  } finally {
+    sourceLoading.value = false
   }
 }
 
-function loadSource() {
-  if (createForm.value?.id) return
-  const kw = sourceKeyword.value.trim().toLowerCase()
+async function loadSource() {
+  if (sourceLoading.value || createForm.value?.id) return
+  const kw = sourceKeyword.value.trim().toUpperCase()
   if (!kw) {
     createForm.value = emptyCreateForm()
     createError.value = '请输入收货单号'
     return
   }
+
+  sourceLoading.value = true
+  createError.value = ''
+  createForm.value = emptyCreateForm()
   try {
-    // 沿用上架服务筛选出的可用收货单，按单号精确匹配。
-    sourceOptions.value = service.sources()
-    const source = sourceOptions.value.find(item => {
-      const receiptNo = String(item.receiptOrderNo || item.orderNo || item.label || '')
-          .trim()
-          .split(/\s*(?:[\/|｜·（(，,]|\s+[-–—]\s+)\s*/)[0]
-          .replace(/^收货单(?:号)?\s*[:：]?\s*/, '')
-      return receiptNo.toLowerCase() === kw
-    })
-    if (!source) {
-      createForm.value = emptyCreateForm()
-      createError.value = '未找到可上架的收货单，请检查收货单号及剩余可上架数量。'
-      return
-    }
-    createForm.value = service.form(Number(source.id))
-    createError.value = ''
+    const receipts = await request('/inbound/receipts')
+    const receipt = receipts.find(r => String(r.receiptOrderNo || '').toUpperCase() === kw)
+    if (!receipt) throw new Error(`收货单 ${kw} 不存在`)
+    if (receipt.status !== 1) throw new Error('收货单未完成，请先完成收货')
+
+    const form = await loadInbound(receipt.inboundOrderId, INBOUND_RECEIVED,
+        '该入库单已有上架单，请在列表中继续上架')
+    if (!isCurrentSource(kw)) return
+    createForm.value = form
   } catch (error) {
-    createForm.value = emptyCreateForm()
-    createError.value = error.message
+    if (createForm.value !== null) createError.value = error.message
+  } finally {
+    sourceLoading.value = false
   }
 }
 
-function closeEditor() {
-  editor.value?.close()
-  createForm.value = null
+async function saveEditor() {
+  const form = createForm.value
+  if (createBusy.value || !form?.sourceId) return
   createError.value = ''
-  sourceKeyword.value = ''
-}
 
-function saveEditor() {
-  if (createBusy.value || !createForm.value) return
-  createBusy.value = true
-  createError.value = ''
+  const locationIdByCode = new Map(
+      form.locations.map(l => [l.locationCode.toUpperCase(), l.id]))
+  let items
   try {
-    const row = service.save(createForm.value, {
-      id: Number(userStore.userId),
-      name: userStore.realName,
+    items = form.items.flatMap(item => {
+      const text = String(item.qty ?? '').trim()
+      if (!text) return []
+      let qty
+      try {
+        qty = units(text)
+      } catch (error) {
+        throw new Error(`SKU ${item.skuId}：${error.message}`)
+      }
+      if (qty === 0n) return []
+      const code = String(item.locationCode || '').trim().toUpperCase()
+      if (!code) throw new Error(`SKU ${item.skuId} 请填写目标库位`)
+      const locationId = locationIdByCode.get(code)
+      if (!locationId) throw new Error(`SKU ${item.skuId} 的库位 ${code} 不存在或已停用`)
+      return [{ inboundOrderItemId: item.sourceItemId, locationId, putawayQty: decimal(qty) }]
     })
-    editor.value?.close()
-    createForm.value = null
-    expanded.value = row.id
-    loadOrders()
-    notify(row.status === 2
-        ? '上架单已完成；库存已更新。'
-        : '上架单已保存为上架中。'
-    )
+    if (!items.length) throw new Error('请至少填写一行大于 0 的上架数量')
+  } catch (error) {
+    createError.value = error.message
+    return
+  }
+
+  createBusy.value = true
+  try {
+    const url = form.id ? `/inbound/putaways/${form.id}/items` : '/inbound/putaways'
+    const result = await request(url, {
+      method: 'POST',
+      body: {
+        inboundOrderId: form.sourceId,
+        operatorId: Number(userStore.userId),
+        remark: form.remark.trim(),
+        items,
+      },
+    })
+    closeEditor()
+    notify(result.status === 2
+        ? `上架单 ${result.putawayOrderNo} 已全部上架，已自动完成。`
+        : `上架单 ${result.putawayOrderNo} 已登记，库存已更新。`)
+    await loadOrders()
+    expanded.value = result.id
   } catch (error) {
     createError.value = error.message
   } finally {
@@ -229,16 +314,42 @@ function saveEditor() {
   }
 }
 
-onMounted(() => {
-  try {
-    service = createPutawayService(window.localStorage)
-    loadOrders()
-  } catch (error) {
-    ordersError.value = error.message
+function closeEditor() {
+  if (editor.value?.open) editor.value.close()
+  createForm.value = null
+  sourceKeyword.value = ''
+  createError.value = ''
+}
+
+
+// ========== 通知 ==========
+
+function notify(msg, isError = false) {
+  message.value = msg
+  messageError.value = isError
+  clearTimeout(timer)
+  timer = setTimeout(() => { message.value = '' }, 4000)
+}
+
+
+// ========== 生命周期 ==========
+
+watch(() => filteredOrders.value.length, () => {
+  if (currentPage.value > totalPages.value) currentPage.value = totalPages.value
+})
+
+watch(sourceKeyword, value => {
+  const form = createForm.value
+  if (form?.sourceId && value.trim().toUpperCase() !== sourceKeyword.value.trim().toUpperCase()) {
+    createForm.value = emptyCreateForm()
   }
 })
 
-onBeforeUnmount(() => {
+onMounted(() => {
+  loadOrders()
+})
+
+onUnmounted(() => {
   clearTimeout(timer)
 })
 </script>
@@ -267,7 +378,7 @@ onBeforeUnmount(() => {
           <input
               id="putaway-keyword"
               v-model.trim="keyword"
-              placeholder="入库单号 / 上架单号"
+              placeholder="入库单号"
           >
         </div>
 
@@ -276,7 +387,7 @@ onBeforeUnmount(() => {
           <select id="putaway-warehouse" v-model="warehouse">
             <option value="">全部仓库</option>
             <option
-                v-for="item in db.warehouses"
+                v-for="item in warehouses"
                 :key="item.id"
                 :value="String(item.id)"
             >
@@ -290,8 +401,8 @@ onBeforeUnmount(() => {
           <select id="putaway-range" v-model="createdRange">
             <option value="all">全部时间</option>
             <option value="today">今天</option>
-            <option value="7d">近 7 天</option>
-            <option value="30d">近 30 天</option>
+            <option value="week">近 7 天</option>
+            <option value="month">近 30 天</option>
           </select>
         </div>
 
@@ -301,14 +412,28 @@ onBeforeUnmount(() => {
       <div class="inbound-toolbar">
         <div class="inbound-tabs">
           <button
-              v-for="tab in statusTabs"
-              :key="tab.value"
               class="inbound-tab"
-              :class="{ active: statusFilter === tab.value }"
+              :class="{ active: statusFilter === '' }"
               type="button"
-              @click="statusFilter = tab.value"
+              @click="statusFilter = ''"
           >
-            {{ tab.label }}
+            全部
+          </button>
+          <button
+              class="inbound-tab"
+              :class="{ active: statusFilter === '1' }"
+              type="button"
+              @click="statusFilter = '1'"
+          >
+            上架中
+          </button>
+          <button
+              class="inbound-tab"
+              :class="{ active: statusFilter === '2' }"
+              type="button"
+              @click="statusFilter = '2'"
+          >
+            已完成
           </button>
         </div>
 
@@ -365,7 +490,7 @@ onBeforeUnmount(() => {
               <td class="nowrap">{{ row.warehouseName }}</td>
 
               <td>
-                <span class="inbound-badge" :class="putawayBadgeClass[row.status] || 's0'">
+                <span class="inbound-badge" :class="row.status === 1 ? 's4' : 's5'">
                   {{ PUTAWAY_STATUS[row.status] }}
                 </span>
               </td>
@@ -410,7 +535,7 @@ onBeforeUnmount(() => {
                     <thead>
                     <tr>
                       <th>SKU ID</th>
-                      <th>目标库位</th>
+                      <th>库位编码</th>
                       <th>本单上架量</th>
                     </tr>
                     </thead>
@@ -494,14 +619,13 @@ onBeforeUnmount(() => {
                     class="inbound-editor-input"
                     :readonly="Boolean(createForm.id)"
                     placeholder="输入收货单号"
-                    @input="resetSourceOnInput"
                     @keydown.enter.prevent="loadSource"
                 />
                 <button
                     v-if="!createForm.id"
                     type="button"
                     class="inbound-btn"
-                    :disabled="createBusy"
+                    :disabled="createBusyOrLoading"
                     @click="loadSource"
                 >查询</button>
               </div>
@@ -527,7 +651,7 @@ onBeforeUnmount(() => {
                   <th>累计已上架</th>
                   <th>当前可上架</th>
                   <th>本次上架</th>
-                  <th>目标库位</th>
+                  <th>库位编码</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -550,7 +674,7 @@ onBeforeUnmount(() => {
                   <td>
                     <input
                         v-model.trim="item.locationCode"
-                        :aria-label="'SKU ' + item.skuId + ' 目标库位'"
+                        :aria-label="'SKU ' + item.skuId + ' 库位编码'"
                         class="inbound-editor-input"
                         type="text"
                         autocomplete="off"
@@ -602,14 +726,14 @@ onBeforeUnmount(() => {
             <button
                 class="inbound-btn"
                 type="button"
-                :disabled="createBusy"
+                :disabled="createBusyOrLoading"
                 @click="closeEditor"
             >返回</button>
 
             <button
                 class="inbound-btn primary"
                 type="button"
-                :disabled="createBusy || !createForm?.sourceId"
+                :disabled="createBusyOrLoading || !createForm?.sourceId"
                 @click="saveEditor"
             >确认上架</button>
           </div>

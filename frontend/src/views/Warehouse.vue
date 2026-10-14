@@ -229,14 +229,6 @@ function resetFilters() {
         </div>
         <div class="toolbar-right">
           <span class="inbound-count">共 <b>{{ filteredWarehouses.length }}</b> 个仓库</span>
-          <button
-              type="button"
-              class="inbound-link-btn expand-toggle"
-              :disabled="!paginatedWarehouses.length"
-              @click="toggleCurrentPage"
-          >
-            {{ allCurrentPageExpanded ? '收起本页全部' : '展开本页全部' }}
-          </button>
         </div>
       </div>
 
