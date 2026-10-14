@@ -1,6 +1,7 @@
 package com.example.wms.controller;
 
 
+import com.example.wms.vo.WarehouseLocationVO;
 import com.example.wms.vo.WarehouseVO;
 import com.example.wms.service.WarehouseService;
 import lombok.RequiredArgsConstructor;
@@ -27,5 +28,15 @@ public class WarehouseController {
         return warehouseService.listAvailable();
 
     }
+
+    /**
+     * 查询库位
+     */
+    @GetMapping("/{id}/locations")
+    public List<WarehouseLocationVO> locations(@PathVariable Long id){
+
+        return warehouseService.listEnabledLocations(id);
+    }
+
 
 }

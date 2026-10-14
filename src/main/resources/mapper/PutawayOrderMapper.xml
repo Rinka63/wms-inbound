@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.example.wms.mapper.PutawayOrderMapper">
+
+    <select id="selectPutawayOrderList"
+            resultType="com.example.wms.dto.PutawayOrderResponse">
+
+        SELECT
+        po.id,
+        po.putaway_order_no AS putawayOrderNo,
+
+        po.receipt_order_id AS receiptOrderId,
+        ro.receipt_order_no AS receiptOrderNo,
+
+        po.inbound_order_id AS inboundOrderId,
+        io.inbound_order_no AS inboundOrderNo,
+
+        po.warehouse_id AS warehouseId,
+        w.warehouse_name AS warehouseName,
+
+        po.putaway_status AS status,
+
+        u.real_name AS operatorName,
+
+        po.gmt_create AS createdTime,
+        po.putaway_time AS putawayTime,
+
+        po.remark
+
+        FROM putaway_order po
+
+        LEFT JOIN receipt_order ro
+        ON ro.id = po.receipt_order_id
+
+        LEFT JOIN inbound_order io
+        ON io.id = po.inbound_order_id
+
+        LEFT JOIN warehouse w
+        ON w.id = po.warehouse_id
+
+        LEFT JOIN wms_user u
+        ON u.id = po.operator_id
+
+        ORDER BY po.gmt_create DESC, po.id DESC
+
+    </select>
+
+    <select id="selectPutawayOrderLines"
+            resultType="com.example.wms.dto.PutawayOrderResponse$Line">
+
+        SELECT
+        poi.id,
+        poi.putaway_order_id AS putawayOrderId,
+        poi.inbound_order_item_id AS inboundOrderItemId,
+        poi.sku_id AS skuId,
+        poi.location_id AS locationId,
+        wl.location_code AS locationCode,
+        poi.putaway_qty AS putawayQty,
+        poi.gmt_create AS createdTime
+
+        FROM putaway_order_item poi
+
+        LEFT JOIN warehouse_location wl
+        ON wl.id = poi.location_id
+
+        ORDER BY poi.putaway_order_id, poi.id
+
+    </select>
+
+    <!-- 须在事务中调用，锁持有到事务结束 -->
+    <select id="selectPutawayOrderForUpdate"
+            resultType="com.example.wms.entity.PutawayOrder">
+
+        SELECT
+        id,
+        putaway_order_no AS putawayOrderNo,
+        inbound_order_id AS inboundOrderId,
+        putaway_status AS putawayStatus
+
+        FROM putaway_order
+        WHERE id = #{id}
+        FOR UPDATE
+
+    </select>
+
+
+    <insert id="insertPutawayOrder"
+            parameterType="com.example.wms.entity.PutawayOrder"
+            useGeneratedKeys="true"
+            keyProperty="id">
+
+        INSERT INTO putaway_order (
+        putaway_order_no,
+        inbound_order_id,
+        receipt_order_id,
+        warehouse_id,
+        operator_id,
+        putaway_status,
+        putaway_time,
+        remark
+        ) VALUES (
+        #{putawayOrderNo},
+        #{inboundOrderId},
+        #{receiptOrderId},
+        #{warehouseId},
+        #{operatorId},
+        #{putawayStatus},
+        #{putawayTime},
+        #{remark}
+        )
+
+    </insert>
+
+    <!--
+        receipt_order_item_id 按“上架单的来源收货单 + 入库明细”反查，
+        命中 uk_receipt_inbound_item，最多一行
+    -->
+    <insert id="insertPutawayOrderItem"
+            parameterType="com.example.wms.entity.PutawayOrderItem"
+            useGeneratedKeys="true"
+            keyProperty="id">
+
+        INSERT INTO putaway_order_item (
+        putaway_order_id,
+        inbound_order_item_id,
+        receipt_order_item_id,
+        sku_id,
+        location_id,
+        putaway_qty
+        ) VALUES (
+        #{putawayOrderId},
+        #{inboundOrderItemId},
+        (
+        SELECT roi.id
+        FROM putaway_order po
+        JOIN receipt_order_item roi
+        ON roi.receipt_order_id = po.receipt_order_id
+        WHERE po.id = #{putawayOrderId}
+        AND roi.inbound_order_item_id = #{inboundOrderItemId}
+        ),
+        #{skuId},
+        #{locationId},
+        #{putawayQty}
+        )
+
+    </insert>
+
+    <!-- 条件更新防超量：并发或前端余量过期时影响 0 行， 符号 <= 需要转义  -->
+    <update id="increasePutawayQty">
+
+        UPDATE inbound_order_item
+        SET putaway_qty = putaway_qty + #{qty}
+        WHERE id = #{inboundOrderItemId}
+        AND <![CDATA[ putaway_qty + #{qty} <= received_qty ]]>
+
+    </update>
+
+    <!-- 依赖 uk_location_sku (location_id, sku_id) -->
+    <insert id="increaseInventory">
+
+        INSERT INTO inventory (
+        warehouse_id,
+        location_id,
+        sku_id,
+        quantity
+        ) VALUES (
+        #{warehouseId},
+        #{item.locationId},
+        #{item.skuId},
+        #{item.putawayQty}
+        )
+        ON DUPLICATE KEY UPDATE quantity = quantity + #{item.putawayQty}
+
+    </insert>
+
+    <!--
+        increaseInventory 之后本事务已持有库存行锁，
+        quantity 即变动后数量，变动前 = quantity - 本次数量
+    -->
+    <insert id="insertInventoryTransaction"
+            parameterType="com.example.wms.entity.PutawayOrderItem">
+
+        INSERT INTO inventory_transaction (
+        inventory_id,
+        putaway_order_item_id,
+        change_qty,
+        before_qty,
+        after_qty
+        )
+        SELECT
+        id,
+        #{id},
+        #{putawayQty},
+        quantity - #{putawayQty},
+        quantity
+        FROM inventory
+        WHERE location_id = #{locationId}
+        AND sku_id = #{skuId}
+
+    </insert>
+
+    <!-- putaway_status = 1 的条件防止重复完成 -->
+    <update id="completePutawayOrder">
+
+        UPDATE putaway_order
+        SET putaway_status = 2,
+        putaway_time = NOW()
+        WHERE id = #{id}
+        AND putaway_status = 1
+
+    </update>
+
+</mapper>

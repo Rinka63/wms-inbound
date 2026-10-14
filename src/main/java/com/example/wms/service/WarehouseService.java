@@ -1,5 +1,6 @@
 package com.example.wms.service;
 
+import com.example.wms.vo.WarehouseLocationVO;
 import com.example.wms.vo.WarehouseVO;
 import com.example.wms.mapper.WarehouseMapper;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +21,10 @@ public class WarehouseService {
 
         return warehouseMapper.selectWarehouseList();
 
+    }
+
+    public List<WarehouseLocationVO> listEnabledLocations(Long warehouseId){
+        return warehouseMapper.selectEnabledLocations(warehouseId);
     }
 
 }
