@@ -109,7 +109,7 @@ const direction = ref('all')
 const timeRange = ref('all')
 const startDate = ref('')
 const endDate = ref('')
-const sortValue = ref('gmtCreate:desc')
+const sortValue = ref('skuId:asc')
 const currentPage = ref(1)
 const pageSize = ref(10)
 
@@ -139,17 +139,7 @@ const filteredTransactions = computed(() => {
 
   return transactions.filter(row => {
     const date = row.gmtCreate.slice(0, 10)
-    const matchesKeyword = !query || [
-      row.id,
-      row.inventoryId,
-      row.putawayOrderItemId,
-      row.putawayOrderNo,
-      row.warehouseNo,
-      row.warehouseName,
-      row.locationId,
-      row.locationCode,
-      row.skuId,
-    ].some(value => String(value).toLowerCase().includes(query))
+    const matchesKeyword = !query || row.putawayOrderNo.toLowerCase().includes(query)
 
     return matchesKeyword &&
         (!warehouseId.value || String(row.warehouseId) === warehouseId.value) &&
@@ -178,7 +168,7 @@ const summary = computed(() => {
 
 const sortField = computed(() => sortValue.value.split(':')[0])
 const sortDirection = computed(() => sortValue.value.split(':')[1])
-const numericFields = new Set(['id', 'changeQty', 'beforeQty', 'afterQty'])
+const numericFields = new Set(['id', 'changeQty', 'beforeQty', 'afterQty', 'skuId', 'locationId'])
 
 const sortedTransactions = computed(() => {
   const field = sortField.value
@@ -216,21 +206,6 @@ function formatSignedQty(value) {
   return `${value > 0 ? '+' : ''}${formatQty(value)}`
 }
 
-function toggleSort(field) {
-  const nextDirection = sortField.value === field && sortDirection.value === 'desc' ? 'asc' : 'desc'
-  sortValue.value = `${field}:${nextDirection}`
-}
-
-function ariaSort(field) {
-  if (sortField.value !== field) return 'none'
-  return sortDirection.value === 'asc' ? 'ascending' : 'descending'
-}
-
-function sortIndicator(field) {
-  if (sortField.value !== field) return '↕'
-  return sortDirection.value === 'asc' ? '↑' : '↓'
-}
-
 function resetFilters() {
   keyword.value = ''
   warehouseId.value = ''
@@ -238,7 +213,7 @@ function resetFilters() {
   timeRange.value = 'all'
   startDate.value = ''
   endDate.value = ''
-  sortValue.value = 'gmtCreate:desc'
+  sortValue.value = 'skuId:asc'
   pageSize.value = 10
   currentPage.value = 1
 }
@@ -315,7 +290,7 @@ function exportCsv() {
               id="transaction-keyword"
               v-model.trim="keyword"
               type="search"
-              placeholder="流水 ID / SKU / 库位 / 上架单号"
+              placeholder="请输入上架单号"
           >
         </div>
         <div class="field">
@@ -381,16 +356,10 @@ function exportCsv() {
         <div class="transaction-toolbar-end">
           <label for="transaction-sort">排序方式</label>
           <select id="transaction-sort" v-model="sortValue" aria-label="流水排序方式">
-            <option value="gmtCreate:desc">时间：最新优先</option>
-            <option value="gmtCreate:asc">时间：最早优先</option>
-            <option value="id:desc">流水 ID：降序</option>
-            <option value="id:asc">流水 ID：升序</option>
-            <option value="changeQty:desc">变动量：从大到小</option>
-            <option value="changeQty:asc">变动量：从小到大</option>
-            <option value="beforeQty:desc">变动前：从大到小</option>
-            <option value="beforeQty:asc">变动前：从小到大</option>
-            <option value="afterQty:desc">变动后：从大到小</option>
-            <option value="afterQty:asc">变动后：从小到大</option>
+            <option value="skuId:asc">SKU ID：升序</option>
+            <option value="skuId:desc">SKU ID：降序</option>
+            <option value="locationId:asc">库位 ID：升序</option>
+            <option value="locationId:desc">库位 ID：降序</option>
           </select>
           <div class="inbound-count" aria-live="polite">共 <b>{{ summary.count }}</b> 条</div>
         </div>
@@ -400,36 +369,16 @@ function exportCsv() {
         <table class="inbound-table inbound-list-table transaction-table">
           <thead>
           <tr>
-            <th scope="col" :aria-sort="ariaSort('id')">
-              <button type="button" class="transaction-sort-trigger" @click="toggleSort('id')">
-                流水 ID <span aria-hidden="true">{{ sortIndicator('id') }}</span>
-              </button>
-            </th>
+            <th scope="col">流水 ID</th>
             <th scope="col">仓库</th>
             <th scope="col">SKU ID</th>
             <th scope="col">库位</th>
             <th scope="col">来源上架单</th>
             <th scope="col">增减方向</th>
-            <th scope="col" :aria-sort="ariaSort('changeQty')">
-              <button type="button" class="transaction-sort-trigger" @click="toggleSort('changeQty')">
-                变动量 <span aria-hidden="true">{{ sortIndicator('changeQty') }}</span>
-              </button>
-            </th>
-            <th scope="col" :aria-sort="ariaSort('beforeQty')">
-              <button type="button" class="transaction-sort-trigger" @click="toggleSort('beforeQty')">
-                变动前 <span aria-hidden="true">{{ sortIndicator('beforeQty') }}</span>
-              </button>
-            </th>
-            <th scope="col" :aria-sort="ariaSort('afterQty')">
-              <button type="button" class="transaction-sort-trigger" @click="toggleSort('afterQty')">
-                变动后 <span aria-hidden="true">{{ sortIndicator('afterQty') }}</span>
-              </button>
-            </th>
-            <th scope="col" :aria-sort="ariaSort('gmtCreate')">
-              <button type="button" class="transaction-sort-trigger" @click="toggleSort('gmtCreate')">
-                变动时间 <span aria-hidden="true">{{ sortIndicator('gmtCreate') }}</span>
-              </button>
-            </th>
+            <th scope="col">变动量</th>
+            <th scope="col">变动前</th>
+            <th scope="col">变动后</th>
+            <th scope="col">变动时间</th>
           </tr>
           </thead>
           <tbody>
@@ -824,23 +773,6 @@ function exportCsv() {
   color: #9a2050;
 }
 
-.transaction-sort-trigger {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font-size: inherit;
-  font-weight: inherit;
-  letter-spacing: inherit;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.transaction-sort-trigger span {
-  margin-left: 3px;
-}
-
-.transaction-sort-trigger:focus-visible,
 .inbound-page button:focus-visible {
   outline: 2px solid var(--ink);
   outline-offset: 3px;

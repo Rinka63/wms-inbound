@@ -272,7 +272,7 @@ const warehouseOptions = computed(() =>
 const warehouses = ref([])
 
 async function loadWarehouses() {
-  const response = await fetch('/warehouses',{
+  const response = await fetch('/api/warehouses',{
     headers: {
       Accept: 'application/json',
       Authorization: `Bearer ${userStore.token}`,

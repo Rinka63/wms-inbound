@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.example.wms.mapper.InventoryMapper">
+    <select id="countGroups" resultType="long">
+        SELECT COUNT(DISTINCT CONCAT(i.warehouse_id, '-', i.sku_id))
+        FROM inventory i
+        JOIN sku s ON i.sku_id = s.id
+        WHERE 1 = 1
+        <if test="warehouseId != null">
+            AND i.warehouse_id = #{warehouseId}
+        </if>
+        <if test="skuCode != null and skuCode != ''">
+            AND s.sku_code = #{skuCode}
+        </if>
+    </select>
+
+    <!-- 分页查询库存分组 -->
+    <select id="selectGroupPage" resultType="com.example.wms.vo.InventoryVO">
+        SELECT
+        i.warehouse_id AS warehouseId,
+        w.warehouse_name AS warehouseName,
+        i.sku_id AS skuId,
+        s.sku_code AS skuCode,
+        s.sku_name AS skuName,
+        SUM(i.quantity) AS totalQuantity
+        FROM inventory i
+        JOIN sku s ON i.sku_id = s.id
+        JOIN warehouse w ON i.warehouse_id = w.id
+        WHERE 1 = 1
+        <if test="warehouseId != null">
+            AND i.warehouse_id = #{warehouseId}
+        </if>
+        <if test="skuCode != null and skuCode != ''">
+            AND s.sku_code = #{skuCode}
+        </if>
+        GROUP BY i.warehouse_id, w.warehouse_name, i.sku_id, s.sku_code, s.sku_name
+        ORDER BY i.warehouse_id, i.sku_id
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <!-- 批量查询指定分组的库位明细，防止N+1查询 -->
+    <select id="selectLocations" resultType="com.example.wms.entity.LocationStockItem">
+        SELECT
+        i.warehouse_id AS warehouseId,
+        i.sku_id AS skuId,
+        wl.id AS locationId,
+        wl.location_code AS locationCode,
+        i.quantity
+        FROM inventory i
+        JOIN warehouse_location wl
+        ON wl.id = i.location_id
+        AND wl.warehouse_id = i.warehouse_id
+        WHERE (i.warehouse_id, i.sku_id) IN
+        <foreach collection="groups" item="g" open="(" separator="," close=")">
+            (#{g.warehouseId}, #{g.skuId})
+        </foreach>
+        ORDER BY i.warehouse_id, i.sku_id, wl.location_code, wl.id
+    </select>
+
+
+
+</mapper>

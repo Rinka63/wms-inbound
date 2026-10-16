@@ -165,7 +165,7 @@ async function loadOrders() {
 
 async function loadWarehouses() {
   try {
-    warehouses.value = await request('/warehouses')
+    warehouses.value = await request('/api/warehouses')
   } catch (error) {
     notify(`获取仓库列表失败：${error.message}`, true)
   }

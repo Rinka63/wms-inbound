@@ -53,10 +53,9 @@ const menuGroups = [
     children: [{ label: '仓库管理', path: '/basic/warehouses' }],
   },
   {
-    label: '个人信息',
+    label: '登录信息',
     icon: UserRound,
     children: [
-      { label: '我的信息', path: '/profile' },
       { label: '退出登录', action: 'logout' },
     ],
   },

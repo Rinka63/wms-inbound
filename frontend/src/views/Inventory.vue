@@ -1,211 +1,152 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useUserStore } from '../stores/user.js'
-import { units } from '../utils/quantity.js'
-
-const userStore = useUserStore()
+import { getInventoryPage, getWarehouses } from '../api/inventory.js'
 
 /**
- * 当前库存页面。
+ * 当前库存页面（改造版）
  *
- * 数据读取 -> buildInventoryGroups() -> 筛选/分页 -> 表格与 CSV。
- * 数据层和展示层保持分离，后端 API 替换时只需改 readInventorySnapshot()。
+ * 后端分页查询：按仓库 + SKU 汇总，返回库位明细
+ * 前端职责：仓库 Tab 切换、搜索触发、展开交互、CSV 全量导出
  */
 
-// ------------------------------ 数据读取 ---------------------------------
-const snapshot = ref({ warehouses: [], locations: [], inbounds: [], inventory: [] })
+// ------------------------------ 状态定义 ---------------------------------
+const warehouses = ref([])         // 仓库列表
+const records = ref([])            // 当前页库存分组（来自后端）
+const total = ref(0)               // 总分组数（来自后端）
 const loading = ref(false)
 const loadError = ref('')
 const lastUpdated = ref('')
 
-async function request(url) {
-  const response = await fetch(url, {
-    headers: {
-      Accept: 'application/json',
-      Authorization: `Bearer ${userStore.token}`,
-    },
-  })
-  const text = await response.text()
-  let result = null
-  if (text) {
-    try {
-      result = JSON.parse(text)
-    } catch {
-      result = null
-    }
-  }
-  if (!response.ok) {
-    throw new Error(result?.message || `请求失败 (${response.status})`)
-  }
-  return result
-}
+// 筛选和分页
+const activeWarehouse = ref('all') // 当前选中仓库 ID 或 'all'
+const keyword = ref('')            // SKU 编码搜索
+const page = ref(1)                // 当前页码
+const size = ref(10)               // 每页条数
+const expandedKeys = ref(new Set()) // 已展开的分组键
 
-async function readInventorySnapshot() {
-  const [warehouses, inventory] = await Promise.all([
-    request('/warehouses'),
-    request('/inventory'),
-  ])
-  return {
-    warehouses,
-    locations: [],
-    inbounds: [],
-    inventory,
-  }
-}
+// 请求序号，防止快速切换时旧请求覆盖新请求
+let requestId = 0
 
+// ------------------------------ 数据加载 ---------------------------------
 async function loadInventory() {
   if (loading.value) return
+
+  const currentRequestId = ++requestId
   loading.value = true
   loadError.value = ''
+
   try {
-    snapshot.value = await readInventorySnapshot()
-    lastUpdated.value = new Date().toLocaleString('zh-CN', { hour12: false })
+    const result = await getInventoryPage({
+      warehouseId: activeWarehouse.value === 'all' ? null : Number(activeWarehouse.value),
+      skuCode: keyword.value.trim(),
+      page: page.value,
+      size: size.value,
+    })
+
+    // 只处理最新请求的响应
+    if (currentRequestId === requestId) {
+      records.value = result.records
+      total.value = result.total
+      lastUpdated.value = new Date().toLocaleString('zh-CN', { hour12: false })
+    }
   } catch (error) {
-    loadError.value = error?.message || '读取库存失败，请稍后重试。'
+    if (currentRequestId === requestId) {
+      loadError.value = error?.message || '读取库存失败，请稍后重试。'
+    }
   } finally {
-    loading.value = false
+    if (currentRequestId === requestId) {
+      loading.value = false
+    }
   }
 }
 
-// ------------------------------ SKU / 库位聚合 ---------------------------
-const collator = new Intl.Collator('zh-CN', { numeric: true, sensitivity: 'base' })
+async function loadWarehouses() {
+  try {
+    warehouses.value = await getWarehouses()
+  } catch (error) {
+    console.error('加载仓库列表失败:', error)
+  }
+}
+
+// ------------------------------ 筛选和交互 -------------------------------
 const stringId = value => String(value ?? '')
-const groupKey = (warehouseId, skuId) => JSON.stringify([stringId(warehouseId), stringId(skuId)])
-const locationKey = (warehouseId, locationId) => JSON.stringify([stringId(warehouseId), stringId(locationId)])
-
-function formatUnits(value) {
-  const negative = value < 0n
-  const absolute = negative ? -value : value
-  const integer = (absolute / 1000n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-  const fraction = (absolute % 1000n).toString().padStart(3, '0')
-  return `${negative ? '-' : ''}${integer}.${fraction}`
-}
-
-/** 一条库存记录 = 一个仓库 + SKU + 库位；同组合重复出现时也要累加。 */
-function buildInventoryGroups(db) {
-  const warehouses = new Map(db.warehouses.map(w => [stringId(w.id), w]))
-  const locations = new Map(db.locations.map(l => [locationKey(l.warehouseId, l.id), l]))
-  const skus = new Map()
-
-  for (const order of db.inbounds) {
-    for (const item of order.items || []) {
-      const id = stringId(item.skuId)
-      if (!skus.has(id)) skus.set(id, item)
-    }
-  }
-
-  const groups = new Map()
-  for (const item of db.inventory) {
-    const warehouseId = stringId(item.warehouseId)
-    const skuId = stringId(item.skuId)
-    const locationId = stringId(item.locationId)
-    const key = groupKey(warehouseId, skuId)
-    const stockUnits = units(item.quantity ?? '0')
-    const catalog = skus.get(skuId)
-
-    if (!groups.has(key)) {
-      groups.set(key, {
-        key,
-        warehouseId,
-        warehouseName: warehouses.get(warehouseId)?.warehouseName || `仓库 #${warehouseId}`,
-        skuId,
-        sku: item.sku || item.skuCode || catalog?.sku || `SKU-${skuId}`,
-        skuName: item.skuName || catalog?.skuName || '未维护商品名称',
-        totalUnits: 0n,
-        locationMap: new Map(),
-      })
-    }
-
-    const group = groups.get(key)
-    const location = locations.get(locationKey(warehouseId, locationId))
-    if (!group.locationMap.has(locationId)) {
-      group.locationMap.set(locationId, {
-        id: locationId,
-        code: item.locationCode || location?.locationCode || `库位 #${locationId}`,
-        quantityUnits: 0n,
-      })
-    }
-    group.totalUnits += stockUnits
-    group.locationMap.get(locationId).quantityUnits += stockUnits
-  }
-
-  return [...groups.values()].map(({ locationMap, ...group }) => {
-    const detail = [...locationMap.values()].sort((a, b) => collator.compare(a.code, b.code))
-    return { ...group, locations: detail, locationCount: detail.length }
-  }).sort((a, b) =>
-      collator.compare(a.warehouseName, b.warehouseName) ||
-      collator.compare(a.sku, b.sku) ||
-      collator.compare(a.skuId, b.skuId)
-  )
-}
-
-const groups = computed(() => buildInventoryGroups(snapshot.value))
-
-// ------------------------------ 筛选 / 展开 / 分页 ------------------------
-const activeWarehouse = ref('all')
-const keyword = ref('')
-const expandedKeys = ref(new Set())
-const currentPage = ref(1)
-const pageSize = ref(10)
 
 const warehouseTabs = computed(() => [
-  { id: 'all', label: '全部仓库', count: groups.value.length },
-  ...snapshot.value.warehouses.map(w => ({
+  {
+    id: 'all',
+    label: '全部仓库'
+  },
+  ...warehouses.value.map(w => ({
     id: stringId(w.id),
     label: w.warehouseName,
-    count: groups.value.filter(g => g.warehouseId === stringId(w.id)).length,
+    count: ''  // 单个仓库暂不显示数量（简化实现）
   })),
 ])
 
-const filteredGroups = computed(() => {
-  const search = keyword.value.trim().toLowerCase()
-  return groups.value.filter(group => {
-    if (activeWarehouse.value !== 'all' && group.warehouseId !== activeWarehouse.value) return false
-    if (!search) return true
-    return [group.skuId, group.sku, group.skuName, group.warehouseName,
-      ...group.locations.map(location => location.code),
-    ].some(value => String(value).toLowerCase().includes(search))
-  })
-})
+const totalPages = computed(() => Math.max(1, Math.ceil(total.value / size.value)))
 
-const totalQuantity = computed(() => filteredGroups.value.reduce((sum, group) => sum + group.totalUnits, 0n))
-const totalLocations = computed(() => filteredGroups.value.reduce((sum, group) => sum + group.locationCount, 0))
-const totalPages = computed(() => Math.max(1, Math.ceil(filteredGroups.value.length / pageSize.value)))
-const paginatedGroups = computed(() => {
-  const start = (currentPage.value - 1) * pageSize.value
-  return filteredGroups.value.slice(start, start + pageSize.value)
-})
 const allExpanded = computed(() =>
-    filteredGroups.value.length > 0 && filteredGroups.value.every(group => expandedKeys.value.has(group.key))
+  records.value.length > 0 && records.value.every(group => {
+    const key = `${group.warehouseId}-${group.skuId}`
+    return expandedKeys.value.has(key)
+  })
 )
-const anyExpanded = computed(() => filteredGroups.value.some(group => expandedKeys.value.has(group.key)))
 
-watch([activeWarehouse, keyword], () => {
-  currentPage.value = 1
+const anyExpanded = computed(() => records.value.some(group => {
+  const key = `${group.warehouseId}-${group.skuId}`
+  return expandedKeys.value.has(key)
+}))
+
+// 监听筛选条件变化，重置页码并重新加载
+watch(activeWarehouse, () => {
+  page.value = 1
   expandedKeys.value = new Set()
+  loadInventory()
 })
-watch(pageSize, () => { currentPage.value = 1 })
+
+watch(size, () => {
+  page.value = 1
+  loadInventory()
+})
+
+watch(page, () => {
+  loadInventory()
+})
+
 watch(totalPages, value => {
-  if (currentPage.value > value) currentPage.value = value
+  if (page.value > value) page.value = value
 })
+
 watch(warehouseTabs, tabs => {
   if (!tabs.some(tab => tab.id === activeWarehouse.value)) activeWarehouse.value = 'all'
 })
 
+function handleSearch() {
+  page.value = 1
+  expandedKeys.value = new Set()
+  loadInventory()
+}
+
 function resetFilters() {
   keyword.value = ''
   activeWarehouse.value = 'all'
-  currentPage.value = 1
+  page.value = 1
   expandedKeys.value = new Set()
+  loadInventory()
 }
-function toggleExpanded(key) {
+
+function toggleExpanded(warehouseId, skuId) {
+  const key = `${warehouseId}-${skuId}`
   const next = new Set(expandedKeys.value)
   next.has(key) ? next.delete(key) : next.add(key)
   expandedKeys.value = next
 }
+
 function expandAll() {
-  expandedKeys.value = new Set([...expandedKeys.value, ...filteredGroups.value.map(group => group.key)])
+  const keys = records.value.map(group => `${group.warehouseId}-${group.skuId}`)
+  expandedKeys.value = new Set([...expandedKeys.value, ...keys])
 }
+
 function collapseAll() {
   expandedKeys.value = new Set()
 }
@@ -226,43 +167,66 @@ function csvCell(value) {
   return `"${text.replace(/"/g, '""')}"`
 }
 
-function exportCsv() {
-  if (loading.value || loadError.value || !filteredGroups.value.length) return
+async function exportCsv() {
+  if (loading.value || loadError.value) return
 
-  const lines = [[
-    '仓库', 'SKU ID', 'SKU 编码', 'SKU 名称', '库位数', 'SKU 库存合计', '库位', '库位库存',
-  ]]
-  for (const group of filteredGroups.value) {
-    // 汇总量仅在 SKU 的第一行写入，以免 CSV 求和时重复计数。
-    for (const [index, location] of group.locations.entries()) {
-      lines.push([
-        group.warehouseName,
-        group.skuId,
-        group.sku,
-        group.skuName,
-        index === 0 ? group.locationCount : '',
-        index === 0 ? formatUnits(group.totalUnits).replaceAll(',', '') : '',
-        location.code,
-        formatUnits(location.quantityUnits).replaceAll(',', ''),
-      ])
+  loading.value = true
+  try {
+    // 1. 发起全量查询（使用当前筛选条件）
+    const allData = await getInventoryPage({
+      warehouseId: activeWarehouse.value === 'all' ? null : Number(activeWarehouse.value),
+      skuCode: keyword.value.trim(),
+      page: 1,
+      size: 9999  // 前端约定：足够大的数表示全量
+    })
+
+    if (!allData.records.length) {
+      notify('暂无数据可导出')
+      return
     }
-  }
 
-  const csv = '\uFEFF' + lines.map(row => row.map(csvCell).join(',')).join('\r\n')
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const element = document.createElement('a')
-  const date = new Date()
-  const stamp = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`
-  const warehouseLabel = warehouseTabs.value.find(tab => tab.id === activeWarehouse.value)?.label || '全部仓库'
-  const safeName = warehouseLabel.replace(/[\\/:*?"<>|\s]+/g, '_')
-  element.href = url
-  element.download = `inventory_${safeName}_${stamp}.csv`
-  document.body.appendChild(element)
-  element.click()
-  element.remove()
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
-  notify(`已导出 ${filteredGroups.value.length} 个 SKU 的库存明细`)
+    // 2. 生成 CSV
+    const lines = [[
+      '仓库', 'SKU ID', 'SKU 编码', 'SKU 名称', '库位数', 'SKU 库存合计', '库位', '库位库存'
+    ]]
+
+    for (const group of allData.records) {
+      for (const [index, location] of group.locations.entries()) {
+        lines.push([
+          group.warehouseName,
+          group.skuId,
+          group.skuCode,
+          group.skuName,
+          index === 0 ? group.locations.length : '',
+          index === 0 ? String(group.totalQuantity).replace(/,/g, '') : '',
+          location.locationCode,
+          String(location.quantity).replace(/,/g, '')
+        ])
+      }
+    }
+
+    // 3. 下载文件
+    const csv = '﻿' + lines.map(row => row.map(csvCell).join(',')).join('\r\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const element = document.createElement('a')
+    const date = new Date()
+    const stamp = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`
+    const warehouseLabel = warehouseTabs.value.find(tab => tab.id === activeWarehouse.value)?.label || '全部仓库'
+    const safeName = warehouseLabel.replace(/[\\/:*?"<>|\s]+/g, '_')
+    element.href = url
+    element.download = `inventory_${safeName}_${stamp}.csv`
+    document.body.appendChild(element)
+    element.click()
+    element.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+
+    notify(`已导出 ${allData.records.length} 个 SKU 的库存明细`)
+  } catch (error) {
+    loadError.value = error.message || '导出失败'
+  } finally {
+    loading.value = false
+  }
 }
 
 // ------------------------------ 生命周期 ----------------------------------
@@ -270,12 +234,13 @@ function onVisibilityChange() {
   if (document.visibilityState === 'visible') loadInventory()
 }
 
-onMounted(() => {
-  loadInventory()
+onMounted(async () => {
+  await loadWarehouses()
+  await loadInventory()
   document.addEventListener('visibilitychange', onVisibilityChange)
 })
+
 onBeforeUnmount(() => {
-  document.removeEventListener('visibilitychange', onVisibilityChange)
   document.removeEventListener('visibilitychange', onVisibilityChange)
   clearTimeout(messageTimer)
 })
@@ -288,20 +253,29 @@ onBeforeUnmount(() => {
         <div class="inbound-kicker">INVENTORY</div>
         <h2>当前库存</h2>
       </div>
+      <div class="inventory-head-actions">
+        <button class="inbound-btn" type="button" @click="exportCsv"
+                :disabled="loading || !!loadError || total === 0">
+          导出 CSV
+        </button>
+      </div>
     </section>
 
     <section class="inbound-page panel">
       <div class="filters inventory-filters">
         <div class="field">
-          <label for="inventory-keyword">库存搜索</label>
+          <label for="inventory-keyword">SKU 编码搜索</label>
           <input id="inventory-keyword" v-model="keyword" type="search"
-                 placeholder="SKU 编码 / 名称 / ID / 库位" autocomplete="off">
+                 placeholder="请输入 SKU 编码" autocomplete="off"
+                 @keyup.enter="handleSearch">
         </div>
         <div class="inventory-update-time" aria-live="polite">
-          <span>库存按仓库、SKU、库位汇总</span>
           <span v-if="lastUpdated">最近刷新：{{ lastUpdated }}</span>
         </div>
-        <button class="btn" type="button" @click="resetFilters">重置</button>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn" type="button" @click="handleSearch">搜索</button>
+          <button class="btn" type="button" @click="resetFilters">重置</button>
+        </div>
       </div>
 
       <div class="inbound-toolbar inventory-toolbar">
@@ -310,17 +284,17 @@ onBeforeUnmount(() => {
                   class="inbound-tab" :class="{ active: activeWarehouse === tab.id }"
                   type="button" role="tab" :aria-selected="activeWarehouse === tab.id"
                   @click="activeWarehouse = tab.id">
-            {{ tab.label }} <span class="inventory-tab-count">{{ tab.count }}</span>
+            {{ tab.label }}
+            <span v-if="tab.count !== ''" class="inventory-tab-count">{{ tab.count }}</span>
           </button>
         </div>
-        <div class="inbound-count">共 <b>{{ filteredGroups.length }}</b> 个 SKU</div>
+        <div class="inbound-count">共 <b>{{ total }}</b> 个库存分组</div>
       </div>
-
 
       <div class="inventory-expand-toolbar">
         <div class="inventory-expand-actions">
           <button class="inbound-link-btn" type="button"
-                  :disabled="loading || !!loadError || allExpanded || !filteredGroups.length"
+                  :disabled="loading || !!loadError || allExpanded || !records.length"
                   @click="expandAll">展开全部</button>
           <span class="inventory-separator">/</span>
           <button class="inbound-link-btn" type="button"
@@ -350,45 +324,46 @@ onBeforeUnmount(() => {
             </td>
           </tr>
           <template v-else>
-            <template v-for="group in paginatedGroups" :key="group.key">
-              <tr class="inbound-main-row" :class="{ 'is-expanded': expandedKeys.has(group.key) }">
+            <template v-for="group in records" :key="`${group.warehouseId}-${group.skuId}`">
+              <tr class="inbound-main-row"
+                  :class="{ 'is-expanded': expandedKeys.has(`${group.warehouseId}-${group.skuId}`) }">
                 <td>
                   <button class="inbound-doc-btn" type="button"
-                          :aria-expanded="expandedKeys.has(group.key)"
-                          @click="toggleExpanded(group.key)">
-                    <span class="arrow">{{ expandedKeys.has(group.key) ? '▾' : '▸' }}</span>
-                    {{ group.sku }}
+                          :aria-expanded="expandedKeys.has(`${group.warehouseId}-${group.skuId}`)"
+                          @click="toggleExpanded(group.warehouseId, group.skuId)">
+                    <span class="arrow">{{ expandedKeys.has(`${group.warehouseId}-${group.skuId}`) ? '▾' : '▸' }}</span>
+                    {{ group.skuCode }}
                   </button>
                   <div class="inbound-secondary">SKU ID：{{ group.skuId }}</div>
                 </td>
                 <td>{{ group.skuName }}</td>
                 <td class="nowrap">{{ group.warehouseName }}</td>
                 <td>
-                  <span class="inbound-badge s0">{{ group.locationCount }} 个库位</span>
+                  <span class="inbound-badge s0">{{ group.locations.length }} 个库位</span>
                 </td>
-                <td class="inbound-qty"><b>{{ formatUnits(group.totalUnits) }}</b></td>
+                <td class="inbound-qty"><b>{{ group.totalQuantity }}</b></td>
                 <td>
                   <button class="inbound-link-btn nowrap" type="button"
-                          :aria-expanded="expandedKeys.has(group.key)"
-                          @click="toggleExpanded(group.key)">
-                    {{ expandedKeys.has(group.key) ? '收起明细' : '查看库位' }}
+                          :aria-expanded="expandedKeys.has(`${group.warehouseId}-${group.skuId}`)"
+                          @click="toggleExpanded(group.warehouseId, group.skuId)">
+                    {{ expandedKeys.has(`${group.warehouseId}-${group.skuId}`) ? '收起明细' : '查看库位' }}
                   </button>
                 </td>
               </tr>
-              <tr v-if="expandedKeys.has(group.key)">
+              <tr v-if="expandedKeys.has(`${group.warehouseId}-${group.skuId}`)">
                 <td colspan="6" class="inbound-detail-cell">
                   <div class="inbound-detail-head">
-                    <b>库位库存明细 · {{ group.sku }}</b>
-                    <span>合计 {{ formatUnits(group.totalUnits) }}</span>
+                    <b>库位库存明细 · {{ group.skuCode }}</b>
+                    <span>合计 {{ group.totalQuantity }}</span>
                   </div>
                   <div class="inbound-table-wrap">
                     <table class="inbound-table inbound-detail-table">
                       <thead><tr><th>库位编码</th><th>库位 ID</th><th>当前数量</th></tr></thead>
                       <tbody>
-                      <tr v-for="location in group.locations" :key="location.id">
-                        <td><b>{{ location.code }}</b></td>
-                        <td>{{ location.id }}</td>
-                        <td class="inbound-qty">{{ formatUnits(location.quantityUnits) }}</td>
+                      <tr v-for="location in group.locations" :key="location.locationId">
+                        <td><b>{{ location.locationCode }}</b></td>
+                        <td>{{ location.locationId }}</td>
+                        <td class="inbound-qty">{{ location.quantity }}</td>
                       </tr>
                       </tbody>
                     </table>
@@ -396,7 +371,7 @@ onBeforeUnmount(() => {
                 </td>
               </tr>
             </template>
-            <tr v-if="filteredGroups.length === 0">
+            <tr v-if="records.length === 0">
               <td colspan="6" class="inbound-empty">暂无符合条件的库存记录。</td>
             </tr>
           </template>
@@ -404,16 +379,16 @@ onBeforeUnmount(() => {
         </table>
       </div>
 
-      <div v-if="!loadError && filteredGroups.length > 0" class="inbound-pagination">
-        <select v-model.number="pageSize" aria-label="每页条数">
+      <div v-if="!loadError && total > 0" class="inbound-pagination">
+        <select v-model.number="size" aria-label="每页条数">
           <option :value="10">10 条/页</option>
           <option :value="20">20 条/页</option>
           <option :value="50">50 条/页</option>
         </select>
-        <button type="button" :disabled="currentPage <= 1" @click="currentPage--">上一页</button>
-        <span>第 {{ currentPage }} / {{ totalPages }} 页</span>
-        <button type="button" :disabled="currentPage >= totalPages" @click="currentPage++">下一页</button>
-        <span>共 {{ filteredGroups.length }} 条</span>
+        <button type="button" :disabled="page <= 1" @click="page--">上一页</button>
+        <span>第 {{ page }} / {{ totalPages }} 页</span>
+        <button type="button" :disabled="page >= totalPages" @click="page++">下一页</button>
+        <span>共 {{ total }} 条</span>
       </div>
     </section>
 
@@ -553,24 +528,6 @@ onBeforeUnmount(() => {
 .inbound-page .btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
 .inventory-tab-count { margin-left: 4px; font-size: 11px; opacity: .68; }
 .inbound-count { color: var(--muted); font-size: 12px; white-space: nowrap; }
-.inventory-summary {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  padding: 18px;
-  border-bottom: 1px solid var(--hairline);
-}
-.inventory-stat {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-  padding: 15px 18px;
-  border-radius: 12px;
-  background: var(--surface-card);
-}
-.inventory-stat span { color: var(--muted); font-size: 12px; }
-.inventory-stat strong { font-size: 21px; font-weight: 650; overflow-wrap: anywhere; }
 .inventory-expand-toolbar {
   display: flex;
   justify-content: space-between;
@@ -699,7 +656,6 @@ onBeforeUnmount(() => {
 }
 @media (max-width: 600px) {
   .inbound-page .filters { grid-template-columns: 1fr; }
-  .inventory-summary { grid-template-columns: 1fr; }
   .inbound-toolbar { align-items: flex-start; flex-direction: column; }
   .inventory-head-actions { width: 100%; }
 }

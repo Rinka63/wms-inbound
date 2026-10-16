@@ -10,7 +10,6 @@ import PutawayOrder from "../views/PutawayOrder.vue"
 import Inventory from '../views/Inventory.vue'
 import InventoryTransaction from '../views/InventoryTransaction.vue'
 import Warehouse from '../views/Warehouse.vue'
-import Profile from '../views/Profile.vue';
 
 const router = createRouter({
     history: createWebHashHistory(),
@@ -63,12 +62,7 @@ const router = createRouter({
                     path: 'basic/warehouses',
                     component: Warehouse,
                     meta: { title: '仓库管理' },
-                },
-                {
-                    path: 'profile',
-                    component: Profile,
-                    meta: { title: '我的信息' },
-                },
+                }
             ],
         },
     ],

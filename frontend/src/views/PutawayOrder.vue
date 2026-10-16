@@ -117,7 +117,7 @@ async function loadOrders() {
   ordersError.value = ''
   try {
     orders.value = await request('/inbound/putaways')
-    warehouses.value = await request('/warehouses')
+    warehouses.value = await request('/api/warehouses')
   } catch (error) {
     ordersError.value = error.message
   } finally {
@@ -189,7 +189,7 @@ function buildForm(detail, locations) {
 async function loadInbound(inboundOrderId, expectedStatus, message) {
   const detail = await request(`/inbound/orders/${inboundOrderId}`)
   if (detail.status !== expectedStatus) throw new Error(message)
-  const locations = await request(`/warehouses/${detail.warehouseId}/locations`)
+  const locations = await request(`/api/warehouses/${detail.warehouseId}/locations`)
   return buildForm(detail, locations)
 }
 
