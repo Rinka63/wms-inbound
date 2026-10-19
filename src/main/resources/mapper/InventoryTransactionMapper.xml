@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.wms.mapper.InventoryTransactionMapper">
+
+    <!-- ResultMap -->
+    <resultMap id="TransactionResponse" type="com.example.wms.dto.InventoryTransactionResponse">
+        <id property="id" column="id"/>
+        <result property="inventoryId" column="inventory_id"/>
+        <result property="warehouseId" column="warehouse_id"/>
+        <result property="skuId" column="sku_id"/>
+        <result property="locationId" column="location_id"/>
+        <result property="changeQty" column="change_qty"/>
+        <result property="beforeQty" column="before_qty"/>
+        <result property="afterQty" column="after_qty"/>
+        <result property="gmtCreate" column="gmt_create"/>
+    </resultMap>
+
+    <!-- 公共 WHERE 条件 -->
+    <sql id="whereConditions">
+        <where>
+            <if test="warehouseId != null">
+                AND i.warehouse_id = #{warehouseId}
+            </if>
+            <if test="skuId != null">
+                AND i.sku_id = #{skuId}
+            </if>
+            <if test="direction == 'increase'">
+                AND t.change_qty &gt; 0
+            </if>
+            <if test="direction == 'decrease'">
+                AND t.change_qty &lt; 0
+            </if>
+        </where>
+    </sql>
+
+    <!-- 查询总数 -->
+    <select id="count" resultType="long">
+        SELECT COUNT(*)
+        FROM inventory_transaction t
+        INNER JOIN inventory i ON i.id = t.inventory_id
+        <include refid="whereConditions"/>
+    </select>
+
+    <!-- 分页查询 -->
+    <select id="selectPage" resultMap="TransactionResponse">
+        SELECT
+            t.id,
+            t.inventory_id,
+            i.warehouse_id,
+            i.sku_id,
+            i.location_id,
+            t.change_qty,
+            t.before_qty,
+            t.after_qty,
+            t.gmt_create
+        FROM inventory_transaction t
+        INNER JOIN inventory i ON i.id = t.inventory_id
+        <include refid="whereConditions"/>
+        ORDER BY t.gmt_create DESC, t.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+</mapper>

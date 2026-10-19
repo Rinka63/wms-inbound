@@ -66,9 +66,7 @@ const pageSize = ref(10)
 const expandedIds = ref([])
 
 const statusTabs = [
-  { value: '', label: '全部' },
-  { value: '1', label: '启用' },
-  { value: '0', label: '停用' },
+  { value: '', label: '全部' }
 ]
 
 const activeWarehouseCount = computed(() =>
@@ -241,7 +239,7 @@ function resetFilters() {
             <th scope="col">仓库名称</th>
             <th scope="col">仓库状态</th>
             <th scope="col">库位数量</th>
-            <th scope="col">创建时间 / 更新时间</th>
+            <th scope="col">创建时间</th>
           </tr>
           </thead>
           <tbody>
@@ -271,11 +269,10 @@ function resetFilters() {
               </td>
               <td>
                 <b class="numeric">{{ warehouseLocations(row.id).length }}</b>
-                <div class="inbound-secondary">启用 {{ enabledLocationCount(row.id) }} 个</div>
               </td>
               <td>
                 <div class="nowrap">{{ row.gmtCreate }}</div>
-                <div class="inbound-secondary nowrap">更新 {{ row.gmtModified }}</div>
+<!--                <div class="inbound-secondary nowrap">更新 {{ row.gmtModified }}</div>-->
               </td>
             </tr>
 
