@@ -20,4 +20,19 @@ public class WarehouseVO {
      */
     private String warehouseName;
 
+    /**
+     * 仓库状态：0停用，1启用
+     */
+    private Integer warehouseStatus;
+
+    /**
+     * 创建时间
+     */
+    private String gmtCreate;
+
+    /**
+     * 更新时间
+     */
+    private String gmtModified;
+
 }

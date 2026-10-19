@@ -38,5 +38,13 @@ public class WarehouseController {
         return warehouseService.listEnabledLocations(id);
     }
 
+    /**
+     * 查询所有库位（用于前端一次性加载）
+     */
+    @GetMapping("/locations")
+    public List<WarehouseLocationVO> allLocations() {
+        return warehouseService.listAllEnabledLocations();
+    }
+
 
 }

@@ -22,7 +22,8 @@ public interface WarehouseMapper {
     );
 
     /**
-     * 查询仓库下启用的库位
+     * 查询启用库位
+     * @param warehouseId 仓库ID，为 null 时查询所有启用库位，有值时查询指定仓库的启用库位
      */
     List<WarehouseLocationVO> selectEnabledLocations(
             @Param("warehouseId") Long warehouseId

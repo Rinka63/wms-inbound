@@ -27,4 +27,11 @@ public class WarehouseService {
         return warehouseMapper.selectEnabledLocations(warehouseId);
     }
 
+    /**
+     * 查询所有启用库位
+     */
+    public List<WarehouseLocationVO> listAllEnabledLocations() {
+        return warehouseMapper.selectEnabledLocations(null);
+    }
+
 }

@@ -32,19 +32,31 @@
         </foreach>
     </select>
 
+    <!-- 修改：新增字段 + 使用动态 SQL 支持 warehouseId 可选 -->
     <select id="selectEnabledLocations"
             resultType="com.example.wms.vo.WarehouseLocationVO">
-
         SELECT
         id,
         warehouse_id AS warehouseId,
-        location_code AS locationCode
+        location_code AS locationCode,
+        location_status AS locationStatus,
+        DATE_FORMAT(gmt_create, '%Y-%m-%d %H:%i:%s') AS gmtCreate,
+        DATE_FORMAT(gmt_modified, '%Y-%m-%d %H:%i:%s') AS gmtModified
         FROM warehouse_location
-
-        WHERE warehouse_id = #{warehouseId}
-        AND location_status = 1
-
-        ORDER BY location_code
+        <where>
+            location_status = 1
+            <if test="warehouseId != null">
+                AND warehouse_id = #{warehouseId}
+            </if>
+        </where>
+        <choose>
+            <when test="warehouseId != null">
+                ORDER BY location_code
+            </when>
+            <otherwise>
+                ORDER BY warehouse_id, location_code
+            </otherwise>
+        </choose>
     </select>
 
 </mapper>

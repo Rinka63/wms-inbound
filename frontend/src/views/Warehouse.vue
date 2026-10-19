@@ -1,61 +1,13 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 
 // ============================================================
-// 1. 模拟数据：与 SQL 的 warehouse / warehouse_location 字段一一对应。
-//    本页面只读，不使用 API、Pinia 或 localStorage。
+// 响应式数据：从后端 API 加载
 // ============================================================
-const initialWarehouses = [
-  { id: 101, warehouseNo: 'WH-SH-01', warehouseName: '上海中心仓', warehouseStatus: 1, gmtCreate: '2026-01-12 09:30:00', gmtModified: '2026-09-18 14:20:00' },
-  { id: 102, warehouseNo: 'WH-BJ-01', warehouseName: '北京北方仓', warehouseStatus: 1, gmtCreate: '2026-01-18 11:00:00', gmtModified: '2026-08-20 10:14:00' },
-  { id: 103, warehouseNo: 'WH-GZ-01', warehouseName: '广州华南仓', warehouseStatus: 1, gmtCreate: '2026-02-06 08:50:00', gmtModified: '2026-09-25 17:30:00' },
-  { id: 104, warehouseNo: 'WH-SZ-01', warehouseName: '深圳电商仓', warehouseStatus: 1, gmtCreate: '2026-02-12 13:10:00', gmtModified: '2026-06-18 09:35:00' },
-  { id: 105, warehouseNo: 'WH-HZ-01', warehouseName: '杭州周转仓', warehouseStatus: 1, gmtCreate: '2026-02-21 10:20:00', gmtModified: '2026-09-30 11:40:00' },
-  { id: 106, warehouseNo: 'WH-CD-01', warehouseName: '成都西南仓', warehouseStatus: 1, gmtCreate: '2026-03-03 15:05:00', gmtModified: '2026-07-03 12:00:00' },
-  { id: 107, warehouseNo: 'WH-WH-01', warehouseName: '武汉华中仓', warehouseStatus: 1, gmtCreate: '2026-03-15 09:45:00', gmtModified: '2026-08-08 15:12:00' },
-  { id: 108, warehouseNo: 'WH-NJ-01', warehouseName: '南京分拨仓', warehouseStatus: 0, gmtCreate: '2026-03-21 13:20:00', gmtModified: '2026-09-02 08:35:00' },
-  { id: 109, warehouseNo: 'WH-XA-01', warehouseName: '西安西北仓', warehouseStatus: 1, gmtCreate: '2026-04-02 08:30:00', gmtModified: '2026-09-01 16:55:00' },
-  { id: 110, warehouseNo: 'WH-TJ-01', warehouseName: '天津中转仓', warehouseStatus: 0, gmtCreate: '2026-04-13 10:10:00', gmtModified: '2026-06-26 11:05:00' },
-  { id: 111, warehouseNo: 'WH-CQ-01', warehouseName: '重庆备货仓', warehouseStatus: 1, gmtCreate: '2026-04-25 16:20:00', gmtModified: '2026-09-10 13:45:00' },
-  { id: 112, warehouseNo: 'WH-CS-01', warehouseName: '长沙区域仓', warehouseStatus: 1, gmtCreate: '2026-05-09 11:40:00', gmtModified: '2026-05-09 11:40:00' },
-  { id: 113, warehouseNo: 'WH-XM-01', warehouseName: '厦门临时仓', warehouseStatus: 0, gmtCreate: '2026-05-26 10:00:00', gmtModified: '2026-08-12 18:25:00' },
-  { id: 114, warehouseNo: 'WH-SU-01', warehouseName: '苏州备件仓', warehouseStatus: 1, gmtCreate: '2026-06-16 09:15:00', gmtModified: '2026-10-08 09:15:00' },
-]
-
-// 模拟仓库与库位保持 1:N；有意包含无库位、停用仓库与停用库位。
-const initialLocationCodes = {
-  101: ['A-01-01', 'A-01-02', 'B-02-01', 'C-01-01'],
-  102: ['A-01-01', 'A-01-02', 'B-01-01'],
-  103: ['A-01-01', 'A-02-01', 'B-01-01', 'B-01-02'],
-  104: ['A-01-01', 'A-01-02'],
-  105: ['A-01-01', 'B-01-01', 'B-01-02'],
-  106: ['A-01-01', 'A-01-02', 'C-01-01'],
-  107: ['A-01-01', 'B-01-01'],
-  108: ['A-01-01', 'A-01-02'],
-  109: ['A-01-01', 'B-01-01', 'C-01-01'],
-  110: [],
-  111: ['A-01-01', 'A-01-02'],
-  112: ['A-01-01', 'B-01-01'],
-  113: ['A-01-01'],
-  114: ['A-01-01', 'A-01-02', 'B-01-01'],
-}
-
-function makeInitialLocations() {
-  let id = 2001
-  return initialWarehouses.flatMap((warehouse) =>
-      (initialLocationCodes[warehouse.id] ?? []).map((locationCode, index) => ({
-        id: id++,
-        warehouseId: warehouse.id,
-        locationCode,
-        locationStatus: index === 2 ? 0 : 1,
-        gmtCreate: warehouse.gmtCreate,
-        gmtModified: warehouse.gmtModified,
-      })),
-  )
-}
-
-const warehouses = initialWarehouses
-const locations = makeInitialLocations()
+const warehouses = ref([])
+const locations = ref([])
+const loading = ref(false)
+const error = ref('')
 
 // 仅支持按仓库编号查询，排序只由下拉框控制。
 const keyword = ref('')
@@ -65,16 +17,51 @@ const currentPage = ref(1)
 const pageSize = ref(10)
 const expandedIds = ref([])
 
-const activeWarehouseCount = computed(() =>
-    warehouses.filter((item) => item.warehouseStatus === 1).length,
-)
-const inactiveWarehouseCount = computed(() =>
-    warehouses.filter((item) => item.warehouseStatus === 0).length,
-)
+// ============================================================
+// API 调用函数
+// ============================================================
+
+/**
+ * 封装 fetch JSON 请求
+ */
+async function getJson(url) {
+  const response = await fetch(url)
+  if (!response.ok) {
+    throw new Error(`请求失败：${response.status} ${response.statusText}`)
+  }
+  return response.json()
+}
+
+/**
+ * 加载仓库和库位数据
+ */
+async function loadData() {
+  loading.value = true
+  error.value = ''
+
+  try {
+    // 并行请求仓库列表和所有库位
+    const [warehouseData, locationData] = await Promise.all([
+      getJson('/api/warehouses'),
+      getJson('/api/warehouses/locations')
+    ])
+
+    warehouses.value = warehouseData
+    locations.value = locationData
+  } catch (e) {
+    error.value = e.message
+    console.error('加载数据失败：', e)
+  } finally {
+    loading.value = false
+  }
+}
+
+// 组件挂载时加载数据
+onMounted(loadData)
 
 const locationsByWarehouse = computed(() => {
   const result = new Map()
-  for (const item of locations) {
+  for (const item of locations.value) {
     if (!result.has(item.warehouseId)) result.set(item.warehouseId, [])
     result.get(item.warehouseId).push(item)
   }
@@ -90,17 +77,11 @@ function warehouseLocations(warehouseId) {
   return locationsByWarehouse.value.get(warehouseId) ?? []
 }
 
-function enabledLocationCount(warehouseId) {
-  return warehouseLocations(warehouseId).filter(
-      (item) => item.locationStatus === 1,
-  ).length
-}
-
 const filteredWarehouses = computed(() => {
   const query = keyword.value.trim().toLocaleLowerCase()
   const direction = warehouseNoSort.value === 'no_desc' ? -1 : 1
 
-  return warehouses
+  return warehouses.value
       .filter((item) =>
           (statusFilter.value === '' || String(item.warehouseStatus) === statusFilter.value) &&
           (!query || item.warehouseNo.toLocaleLowerCase().includes(query)),
@@ -133,10 +114,6 @@ watch([keyword, statusFilter, warehouseNoSort, pageSize], () => {
 watch(totalPages, (count) => {
   if (currentPage.value > count) currentPage.value = count
 })
-
-function setStatusFilter(value) {
-  statusFilter.value = value
-}
 
 function isExpanded(id) {
   return expandedIds.value.includes(id)
@@ -198,33 +175,30 @@ function resetFilters() {
         <button class="btn" type="button" @click="resetFilters">重置</button>
       </div>
 
-      <div class="inbound-toolbar">
-        <div class="inbound-tabs" role="group" aria-label="仓库状态">
-          <button
-              v-for="tab in statusTabs"
-              :key="tab.value"
-              type="button"
-              class="inbound-tab"
-              :class="{ active: statusFilter === tab.value }"
-              :aria-pressed="statusFilter === tab.value"
-              @click="setStatusFilter(tab.value)"
-          >
-            {{ tab.label }}
-            <span class="tab-number">
-              {{
-                tab.value === ''
-                    ? warehouses.length
-                    : tab.value === '1'
-                        ? activeWarehouseCount
-                        : inactiveWarehouseCount
-              }}
-            </span>
-          </button>
-        </div>
-        <div class="toolbar-right">
-          <span class="inbound-count">共 <b>{{ filteredWarehouses.length }}</b> 个仓库</span>
-        </div>
+      <!-- 新增：加载状态 -->
+      <div v-if="loading" class="loading-state">
+        <div class="loading-spinner"></div>
+        <p>正在加载数据...</p>
       </div>
+
+      <!-- 新增：错误提示 -->
+      <div v-else-if="error" class="error-state">
+        <p class="error-message">⚠️ 加载失败：{{ error }}</p>
+        <button type="button" class="btn" @click="loadData">重试</button>
+      </div>
+
+      <!-- 原有内容：只在加载完成且无错误时显示 -->
+      <template v-else>
+        <div class="inbound-toolbar">
+          <div class="toolbar-left">
+            <span class="inbound-count">
+              共 <b>{{ warehouses.length }}</b> 个仓库
+            </span>
+          </div>
+          <div class="toolbar-right">
+            <span class="inbound-count">筛选结果：<b>{{ filteredWarehouses.length }}</b> 个仓库</span>
+          </div>
+        </div>
 
       <div class="inbound-table-wrap">
         <table class="inbound-table inbound-list-table">
@@ -346,7 +320,8 @@ function resetFilters() {
         >下一页</button>
         <span>共 {{ filteredWarehouses.length }} 条</span>
       </div>
-    </section>
+    </template>
+  </section>
   </main>
 </template>
 
@@ -742,5 +717,54 @@ function resetFilters() {
   .inbound-pagination {
     justify-content: flex-start;
   }
+}
+
+/* ============================================================
+   加载状态和错误提示样式
+   ============================================================ */
+
+.loading-state,
+.error-state {
+  padding: 64px 18px;
+  text-align: center;
+}
+
+.loading-state p {
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.loading-spinner {
+  display: inline-block;
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--hairline);
+  border-top-color: var(--ink);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.error-state .error-message {
+  margin-bottom: 16px;
+  color: #dc2626;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.error-state .btn {
+  margin: 0 auto;
+}
+
+/* 工具栏左侧布局 */
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
 }
 </style>
