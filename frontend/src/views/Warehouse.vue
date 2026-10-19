@@ -65,10 +65,6 @@ const currentPage = ref(1)
 const pageSize = ref(10)
 const expandedIds = ref([])
 
-const statusTabs = [
-  { value: '', label: '全部' }
-]
-
 const activeWarehouseCount = computed(() =>
     warehouses.filter((item) => item.warehouseStatus === 1).length,
 )

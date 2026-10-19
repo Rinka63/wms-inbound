@@ -16,8 +16,8 @@ public class InventoryTransactionService {
     /**
      * 查询库存流水总数
      */
-    public long count(Long warehouseId, Long skuId, String direction) {
-        return mapper.count(warehouseId, skuId, direction);
+    public long count(Long warehouseId, String skuCode, String direction) {
+        return mapper.count(warehouseId, skuCode, direction);
     }
 
     /**
@@ -25,12 +25,12 @@ public class InventoryTransactionService {
      */
     public List<InventoryTransactionResponse> listPage(
         Long warehouseId,
-        Long skuId,
+        String skuCode,
         String direction,
         int page,
         int size
     ) {
         long offset = (page - 1L) * size;
-        return mapper.selectPage(warehouseId, skuId, direction, offset, size);
+        return mapper.selectPage(warehouseId, skuCode, direction, offset, size);
     }
 }

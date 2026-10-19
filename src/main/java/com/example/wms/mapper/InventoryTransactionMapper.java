@@ -14,7 +14,7 @@ public interface InventoryTransactionMapper {
      */
     long count(
         @Param("warehouseId") Long warehouseId,
-        @Param("skuId") Long skuId,
+        @Param("skuCode") String skuCode,
         @Param("direction") String direction
     );
 
@@ -23,7 +23,7 @@ public interface InventoryTransactionMapper {
      */
     List<InventoryTransactionResponse> selectPage(
         @Param("warehouseId") Long warehouseId,
-        @Param("skuId") Long skuId,
+        @Param("skuCode") String skuCode,
         @Param("direction") String direction,
         @Param("offset") long offset,
         @Param("limit") int limit

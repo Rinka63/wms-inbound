@@ -13,9 +13,9 @@ public class InventoryTransactionRequest {
     private Long warehouseId;
 
     /**
-     * SKU ID（可选）
+     * SKU 编码（可选）
      */
-    private Long skuId;
+    private String skuCode;
 
     /**
      * 变动方向：all(全部) / increase(增加) / decrease(减少)

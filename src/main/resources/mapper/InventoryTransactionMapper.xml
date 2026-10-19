@@ -9,6 +9,7 @@
         <result property="inventoryId" column="inventory_id"/>
         <result property="warehouseId" column="warehouse_id"/>
         <result property="skuId" column="sku_id"/>
+        <result property="skuCode" column="sku_code"/>
         <result property="locationId" column="location_id"/>
         <result property="changeQty" column="change_qty"/>
         <result property="beforeQty" column="before_qty"/>
@@ -22,8 +23,8 @@
             <if test="warehouseId != null">
                 AND i.warehouse_id = #{warehouseId}
             </if>
-            <if test="skuId != null">
-                AND i.sku_id = #{skuId}
+            <if test="skuCode != null and skuCode != ''">
+                AND s.sku_code = #{skuCode}
             </if>
             <if test="direction == 'increase'">
                 AND t.change_qty &gt; 0
@@ -39,6 +40,7 @@
         SELECT COUNT(*)
         FROM inventory_transaction t
         INNER JOIN inventory i ON i.id = t.inventory_id
+        INNER JOIN sku s ON s.id = i.sku_id
         <include refid="whereConditions"/>
     </select>
 
@@ -49,6 +51,7 @@
             t.inventory_id,
             i.warehouse_id,
             i.sku_id,
+            s.sku_code,
             i.location_id,
             t.change_qty,
             t.before_qty,
@@ -56,6 +59,7 @@
             t.gmt_create
         FROM inventory_transaction t
         INNER JOIN inventory i ON i.id = t.inventory_id
+        INNER JOIN sku s ON s.id = i.sku_id
         <include refid="whereConditions"/>
         ORDER BY t.gmt_create DESC, t.id DESC
         LIMIT #{limit} OFFSET #{offset}

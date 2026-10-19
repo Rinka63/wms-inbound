@@ -20,7 +20,7 @@ const warehouses = ref([])
 
 // 筛选条件
 const warehouseId = ref('')
-const skuId = ref('')
+const skuCode = ref('')
 const direction = ref('all')
 const timeRange = ref('all')
 
@@ -112,7 +112,7 @@ async function loadTransactions() {
       size: size.value,
     })
     if (warehouseId.value) params.set('warehouseId', warehouseId.value)
-    if (skuId.value) params.set('skuId', skuId.value)
+    if (skuCode.value) params.set('skuCode', skuCode.value)
 
     const result = await request(`/api/inventory/transactions?${params}`)
 
@@ -144,7 +144,7 @@ async function loadWarehouses() {
 // 重置筛选
 function resetFilters() {
   warehouseId.value = ''
-  skuId.value = ''
+  skuCode.value = ''
   direction.value = 'all'
   timeRange.value = 'all'
   size.value = 10
@@ -164,7 +164,7 @@ function formatSignedQty(value) {
 }
 
 // 监听筛选条件变化，重置页码并重新加载（参考 Inventory.vue 第 100-122 行）
-watch([warehouseId, skuId, direction], () => {
+watch([warehouseId, skuCode, direction], () => {
   page.value = 1
   loadTransactions()
 })
@@ -202,12 +202,12 @@ onMounted(() => {
       <!-- 筛选区：4 个筛选项 -->
       <div class="filters">
         <div class="field">
-          <label for="transaction-sku">SKU ID</label>
+          <label for="transaction-sku">SKU 编码</label>
           <input
             id="transaction-sku"
-            v-model.trim="skuId"
+            v-model.trim="skuCode"
             type="text"
-            placeholder="输入 SKU ID"
+            placeholder="输入 SKU 编码"
           >
         </div>
 
@@ -266,7 +266,7 @@ onMounted(() => {
             <tr>
               <th scope="col">流水 ID</th>
               <th scope="col">仓库 ID</th>
-              <th scope="col">SKU ID</th>
+              <th scope="col">SKU 编码</th>
               <th scope="col">库位 ID</th>
               <th scope="col">变动方向</th>
               <th scope="col">变动量</th>
@@ -294,7 +294,10 @@ onMounted(() => {
                   <div class="inbound-secondary">库存 #{{ row.inventoryId }}</div>
                 </td>
                 <td>{{ row.warehouseId }}</td>
-                <td>{{ row.skuId }}</td>
+                <td>
+                  <b>{{ row.skuCode }}</b>
+                  <div class="inbound-secondary">SKU ID：{{ row.skuId }}</div>
+                </td>
                 <td>{{ row.locationId }}</td>
                 <td>
                   <span

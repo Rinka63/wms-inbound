@@ -31,6 +31,11 @@ public class InventoryTransactionResponse {
     private Long skuId;
 
     /**
+     * SKU 编码
+     */
+    private String skuCode;
+
+    /**
      * 库位 ID
      */
     private Long locationId;
