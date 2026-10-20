@@ -41,6 +41,8 @@ public class PutawayOrderService {
 
     private final WarehouseMapper warehouseMapper;
 
+    private final InventoryTransactionService inventoryTransactionService;
+
     private static final DateTimeFormatter NO_FORMATTER =
             DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
@@ -166,6 +168,15 @@ public class PutawayOrderService {
         } else {
             inboundOrderMapper.updateInboundStatus(inboundOrderId, InboundOrderStatus.PART_PUTAWAY.getCode());
         }
+
+        /*return new CreatePutawayOrderResponse(
+                order.getId(),
+                order.getPutawayOrderNo(),
+                order.getPutawayStatus()
+        );*/
+
+//        上架后清除库存流水缓存
+        inventoryTransactionService.evictCache(warehouseId, null);
 
         return new CreatePutawayOrderResponse(
                 order.getId(),
