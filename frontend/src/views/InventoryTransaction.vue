@@ -276,14 +276,6 @@ onMounted(() => {
 <style scoped>
 /* 公共样式请参考 common.css */
 /* 基础页面样式 - 沿用 ReceiptOrder.vue */
-.inbound-page {
-  width: min(1320px, 100%);
-  margin: 0 auto;
-  padding: 32px;
-  color: var(--ink);
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
-  box-sizing: border-box;
-}
 
 .inbound-page * {
   box-sizing: border-box;
@@ -293,14 +285,6 @@ onMounted(() => {
 .inbound-page input,
 .inbound-page select {
   font: inherit;
-}
-
-.inbound-page-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 24px;
-  align-items: flex-end;
-  margin-bottom: 26px;
 }
 
 .inbound-kicker {
@@ -392,23 +376,6 @@ onMounted(() => {
   border-bottom: 1px solid var(--hairline);
 }
 
-.inbound-tabs {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.inbound-tab {
-  padding: 8px 13px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 560;
-  cursor: pointer;
-}
-
 .inbound-tab.active {
   background: var(--surface-card);
   color: var(--ink);
@@ -420,15 +387,6 @@ onMounted(() => {
 }
 
 /* 表格样式 */
-.inbound-table-wrap {
-  overflow: auto;
-}
-
-.inbound-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
 .inbound-list-table {
   min-width: 960px;
 }
@@ -472,17 +430,6 @@ onMounted(() => {
   font-variant-numeric: tabular-nums;
 }
 
-.inbound-badge {
-  display: inline-flex;
-  align-items: center;
-  min-height: 26px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 650;
-  white-space: nowrap;
-}
-
 .inbound-badge.s0 {
   background: var(--surface-card);
   color: var(--muted);
@@ -520,38 +467,6 @@ onMounted(() => {
 
 .inventory-error button {
   margin-left: 12px;
-}
-
-/* 分页样式 */
-.inbound-pagination {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-  padding: 16px 18px;
-}
-
-.inbound-pagination button {
-  padding: 6px 12px;
-  border: 1px solid var(--hairline);
-  border-radius: 8px;
-  background: var(--canvas);
-  cursor: pointer;
-  font-size: 13px;
-}
-
-.inbound-pagination button:disabled {
-  cursor: not-allowed;
-  opacity: .5;
-}
-
-.inbound-pagination select {
-  padding: 6px 8px;
-  border: 1px solid var(--hairline);
-  border-radius: 8px;
-  background: var(--canvas);
-  font: inherit;
-  font-size: 13px;
 }
 
 /* 库存流水专属样式 */

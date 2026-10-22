@@ -1606,14 +1606,6 @@ onBeforeUnmount(() => {
  * 原因：需要 flex-end 对齐（右侧按钮组需要底部对齐）
  * 主要差异：align-items: flex-end（而非 center）
  */
-.inbound-page-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 24px;
-  align-items: flex-end;
-  margin-bottom: 26px;
-}
-
 .inbound-kicker {
   margin-bottom: 8px;
   color: var(--muted);
@@ -1789,21 +1781,6 @@ onBeforeUnmount(() => {
   border-bottom: 1px solid var(--hairline);
 }
 
-/* .inbound-tab - 覆盖 common.css
- * 原因：采用药丸形设计风格
- * 主要差异：border-radius: 999px（而非 8px），transparent 背景
- */
-.inbound-tab {
-  padding: 8px 13px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 560;
-  cursor: pointer;
-}
-
 .inbound-tab.active {
   background: var(--surface-card);
   color: var(--ink);
@@ -1857,17 +1834,6 @@ onBeforeUnmount(() => {
  * 原因：采用药丸形设计风格（border-radius: 999px）与 tab 保持一致
  * 主要差异：更高的 min-height (26px)，垂直 padding，药丸形圆角
  */
-.inbound-badge {
-  display: inline-flex;
-  align-items: center;
-  min-height: 26px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 650;
-  white-space: nowrap;
-}
-
 .inbound-badge.s0 {
   background: var(--surface-card);
 }
@@ -2483,18 +2449,6 @@ onBeforeUnmount(() => {
   line-height: 1.6;
 }
 
-
-/* .inbound-pagination - 覆盖 common.css
- * 原因：右对齐分页控件（不显示"共 X 条"信息）
- * 主要差异：justify-content: flex-end（而非 space-between），增加 gap 和 padding
- */
-.inbound-pagination {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-  padding: 16px 18px;
-}
 
 .inbound-pagination button {
   padding: 6px 12px;

@@ -316,16 +316,11 @@ function resetFilters() {
 </template>
 
 <style scoped>
-/* 公共样式请参考 common.css */
-/* 与 ReceiptOrder.vue 保持一致的列表、筛选、标签及展开明细风格 */
-.inbound-page {
-  width: min(1320px, 100%);
-  margin: 0 auto;
-  padding: 32px;
-  color: var(--ink);
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
-  box-sizing: border-box;
-}
+/*
+ * 注意：部分基础样式（.inbound-page, .inbound-table 等）已在 common.css 中定义
+ * 此处保留的样式主要为页面特有样式和差异化调整
+ * TODO: 后续可逐步清理与 common.css 完全重复的样式
+ */
 
 .inbound-page * {
   box-sizing: border-box;
@@ -336,14 +331,6 @@ function resetFilters() {
 .inbound-page select,
 .inbound-page textarea {
   font: inherit;
-}
-
-.inbound-page-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 24px;
-  align-items: flex-end;
-  margin-bottom: 26px;
 }
 
 .inbound-kicker {
@@ -360,13 +347,6 @@ function resetFilters() {
   line-height: 1.05;
   letter-spacing: -1.6px;
   font-weight: 520;
-}
-
-.inbound-page.panel {
-  overflow: hidden;
-  border: 1px solid var(--hairline);
-  border-radius: 16px;
-  background: var(--canvas);
 }
 
 .inbound-page .filters {
@@ -433,23 +413,6 @@ function resetFilters() {
   border-bottom: 1px solid var(--hairline);
 }
 
-.inbound-tabs {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.inbound-tab {
-  padding: 8px 13px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 560;
-  cursor: pointer;
-}
-
 .inbound-tab.active {
   background: var(--surface-card);
   color: var(--ink);
@@ -458,15 +421,6 @@ function resetFilters() {
 .inbound-count {
   color: var(--muted);
   font-size: 12px;
-}
-
-.inbound-table-wrap {
-  overflow: auto;
-}
-
-.inbound-table {
-  width: 100%;
-  border-collapse: collapse;
 }
 
 .inbound-list-table {
@@ -523,17 +477,6 @@ function resetFilters() {
   display: inline-block;
   width: 15px;
   color: #8c8170;
-}
-
-.inbound-badge {
-  display: inline-flex;
-  align-items: center;
-  min-height: 26px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 650;
-  white-space: nowrap;
 }
 
 .inbound-badge.s0 {
@@ -626,38 +569,6 @@ function resetFilters() {
   padding: 12px 0 4px;
   font-size: 12px;
   color: var(--muted);
-}
-
-.inbound-pagination {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-  padding: 16px 18px;
-  flex-wrap: wrap;
-}
-
-.inbound-pagination button {
-  padding: 6px 12px;
-  border: 1px solid var(--hairline);
-  border-radius: 8px;
-  background: var(--canvas);
-  cursor: pointer;
-  font-size: 13px;
-}
-
-.inbound-pagination button:disabled {
-  cursor: not-allowed;
-  opacity: .5;
-}
-
-.inbound-pagination select {
-  padding: 6px 8px;
-  border: 1px solid var(--hairline);
-  border-radius: 8px;
-  background: var(--canvas);
-  font: inherit;
-  font-size: 13px;
 }
 
 @media (max-width: 900px) {

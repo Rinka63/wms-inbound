@@ -23,7 +23,14 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/inbound/**",
                         "/api/warehouses/**",
                         "/api/inventory/**",
-                        "/error"
+                        "/error",
+                        "/doc.html",
+                        "/webjars/**",
+                        "/v3/api-docs/**",
+                        "/swagger-ui/**",
+                        "/swagger-ui.html",
+                        "/swagger-resources/**",
+                        "/favicon.ico"
                 );
     }
 
