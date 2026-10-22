@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useUserStore } from '../stores/user'
+import { request } from '../api/http.js'
 
 const userStore = useUserStore()
 
@@ -22,7 +23,6 @@ const warehouses = ref([])
 const warehouseId = ref('')
 const skuCode = ref('')
 const direction = ref('all')
-const timeRange = ref('all')
 
 // 分页
 const page = ref(1)
@@ -38,69 +38,11 @@ const directionOptions = [
   { label: '库存减少', value: 'decrease' },
 ]
 
-// 统一请求函数（参考 ReceiptOrder.vue）
-async function request(url, { method = 'GET', body } = {}) {
-  const headers = {
-    Accept: 'application/json',
-    Authorization: `Bearer ${userStore.token}`,
-  }
-  if (body !== undefined) headers['Content-Type'] = 'application/json'
-
-  const response = await fetch(url, {
-    method,
-    headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
-  })
-
-  const text = await response.text()
-  let result = null
-  if (text) {
-    try {
-      result = JSON.parse(text)
-    } catch {
-      result = null
-    }
-  }
-
-  if (!response.ok) {
-    throw new Error(result?.message || `请求失败 (${response.status})`)
-  }
-  return result
-}
-
-// 时间过滤函数（参考 ReceiptOrder.vue 第 54-69 行）
-function matchesTimeRange(value) {
-  if (timeRange.value === 'all') return true
-  if (!value) return true
-
-  const created = new Date(String(value).replace(' ', 'T'))
-  if (Number.isNaN(created.getTime())) return true
-
-  const now = new Date()
-  if (timeRange.value === 'today') {
-    const start = new Date(now)
-    start.setHours(0, 0, 0, 0)
-    return created >= start
-  }
-
-  const days = timeRange.value === '7d' ? 7 : 30
-  const boundary = new Date(now)
-  boundary.setDate(boundary.getDate() - days)
-  return created >= boundary
-}
-
-// 前端时间过滤后的数据
-const filteredRecords = computed(() => {
-  return records.value.filter(row => matchesTimeRange(row.gmtCreate))
-})
-
 // 总页数（基于后端返回的 total）
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / size.value)))
 
 // 加载流水数据（参考 Inventory.vue 第 31-61 行）
 async function loadTransactions() {
-  if (loading.value) return
-
   const currentRequestId = ++requestId
   loading.value = true
   loadError.value = ''
@@ -146,7 +88,6 @@ function resetFilters() {
   warehouseId.value = ''
   skuCode.value = ''
   direction.value = 'all'
-  timeRange.value = 'all'
   size.value = 10
   page.value = 1
 }
@@ -225,16 +166,6 @@ onMounted(() => {
           </select>
         </div>
 
-        <div class="field">
-          <label for="transaction-time-range">变动时间</label>
-          <select id="transaction-time-range" v-model="timeRange">
-            <option value="all">全部时间</option>
-            <option value="today">今天</option>
-            <option value="7d">近 7 天</option>
-            <option value="30d">近 30 天</option>
-          </select>
-        </div>
-
         <button class="btn" type="button" @click="resetFilters">重置</button>
       </div>
 
@@ -255,7 +186,7 @@ onMounted(() => {
         </div>
 
         <div class="inbound-count" aria-live="polite">
-          共 <b>{{ total }}</b> 条（当前页显示 <b>{{ filteredRecords.length }}</b> 条）
+          共 <b>{{ total }}</b> 条（当前页显示 <b>{{ records.length }}</b> 条）
         </div>
       </div>
 
@@ -288,7 +219,7 @@ onMounted(() => {
             </tr>
 
             <template v-else>
-              <tr v-for="row in filteredRecords" :key="row.id">
+              <tr v-for="row in records" :key="row.id">
                 <td>
                   <b>#{{ row.id }}</b>
                   <div class="inbound-secondary">库存 #{{ row.inventoryId }}</div>
@@ -315,7 +246,7 @@ onMounted(() => {
                 <td class="nowrap">{{ row.gmtCreate }}</td>
               </tr>
 
-              <tr v-if="!loading && !loadError && filteredRecords.length === 0">
+              <tr v-if="!loading && !loadError && records.length === 0">
                 <td colspan="9" class="inbound-empty">
                   没有符合条件的库存流水。
                   <button class="inbound-link-btn" type="button" @click="resetFilters">清除筛选条件</button>
@@ -343,6 +274,7 @@ onMounted(() => {
 </template>
 
 <style scoped>
+/* 公共样式请参考 common.css */
 /* 基础页面样式 - 沿用 ReceiptOrder.vue */
 .inbound-page {
   width: min(1320px, 100%);

@@ -2,7 +2,9 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useUserStore } from '../stores/user'
 import { RECEIPT_STATUS } from '../stores/inboundStore.js'
-import { decimal, units } from '../utils/quantity.js'
+import { decimal, units, formatQty } from '../utils/quantity.js'
+import { matchesTimeRange } from '../utils/dateRange.js'
+import { request } from '../api/http.js'
 
 const userStore = useUserStore()
 
@@ -44,30 +46,6 @@ const pageSize = ref(10)
 
 let timer
 
-function formatQty(value) {
-  return Number(value || 0).toLocaleString('zh-CN', {
-    minimumFractionDigits: 3,
-    maximumFractionDigits: 3,
-  })
-}
-
-function matchesCreatedRange(value) {
-  if (createdRange.value === 'all') return true
-  if (!value) return true
-  const created = new Date(String(value).replace(' ', 'T'))
-  if (Number.isNaN(created.getTime())) return true
-  const now = new Date()
-  if (createdRange.value === 'today') {
-    const start = new Date(now)
-    start.setHours(0, 0, 0, 0)
-    return created >= start
-  }
-  const days = createdRange.value === '7d' ? 7 : 30
-  const boundary = new Date(now)
-  boundary.setDate(boundary.getDate() - days)
-  return created >= boundary
-}
-
 const filteredOrders = computed(() => {
   const kw = keyword.value.trim().toLowerCase()
   return orders.value.filter(row =>
@@ -76,7 +54,7 @@ const filteredOrders = computed(() => {
       )) &&
       (!warehouse.value || row.warehouseId === Number(warehouse.value)) &&
       (statusFilter.value === '' || String(row.status) === statusFilter.value) &&
-      matchesCreatedRange(row.createdTime)
+      matchesTimeRange(row.createdTime, createdRange.value)
   )
 })
 
@@ -117,38 +95,6 @@ function notify(text, error = false) {
   messageError.value = error
   clearTimeout(timer)
   timer = setTimeout(() => { message.value = '' }, 5500)
-}
-
-/**
- * 统一请求：带 token；成功时空 body 返回 null；失败时抛出后端的 message
- */
-async function request(url, { method = 'GET', body } = {}) {
-  const headers = {
-    Accept: 'application/json',
-    Authorization: `Bearer ${userStore.token}`,
-  }
-  if (body !== undefined) headers['Content-Type'] = 'application/json'
-
-  const response = await fetch(url, {
-    method,
-    headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
-  })
-
-  const text = await response.text()
-  let result = null
-  if (text) {
-    try {
-      result = JSON.parse(text)
-    } catch {
-      result = null
-    }
-  }
-
-  if (!response.ok) {
-    throw new Error(result?.message || `请求失败 (${response.status})`)
-  }
-  return result
 }
 
 async function loadOrders() {
@@ -694,6 +640,12 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+/*
+ * 注意：部分基础样式（.inbound-page, .inbound-table 等）已在 common.css 中定义
+ * 此处保留的样式主要为页面特有样式和差异化调整
+ * TODO: 后续可逐步清理与 common.css 完全重复的样式
+ */
+
 .inbound-page {
   width: min(1320px, 100%);
   margin: 0 auto;

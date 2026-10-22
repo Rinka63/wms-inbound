@@ -29,8 +29,6 @@ let requestId = 0
 
 // ------------------------------ 数据加载 ---------------------------------
 async function loadInventory() {
-  if (loading.value) return
-
   const currentRequestId = ++requestId
   loading.value = true
   loadError.value = ''
@@ -397,6 +395,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+/* 公共样式请参考 common.css */
 /* 与 ReceiptOrder.vue 保持同一套视觉变量、类名，未来可抽取为共享样式。 */
 .inbound-page {
   width: min(1320px, 100%);

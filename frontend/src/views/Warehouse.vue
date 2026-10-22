@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref, watch, onMounted } from 'vue'
+import { request } from '../api/http.js'
 
 // ============================================================
 // 响应式数据：从后端 API 加载
@@ -22,17 +23,6 @@ const expandedIds = ref([])
 // ============================================================
 
 /**
- * 封装 fetch JSON 请求
- */
-async function getJson(url) {
-  const response = await fetch(url)
-  if (!response.ok) {
-    throw new Error(`请求失败：${response.status} ${response.statusText}`)
-  }
-  return response.json()
-}
-
-/**
  * 加载仓库和库位数据
  */
 async function loadData() {
@@ -42,8 +32,8 @@ async function loadData() {
   try {
     // 并行请求仓库列表和所有库位
     const [warehouseData, locationData] = await Promise.all([
-      getJson('/api/warehouses'),
-      getJson('/api/warehouses/locations')
+      request('/api/warehouses'),
+      request('/api/warehouses/locations')
     ])
 
     warehouses.value = warehouseData
@@ -326,6 +316,7 @@ function resetFilters() {
 </template>
 
 <style scoped>
+/* 公共样式请参考 common.css */
 /* 与 ReceiptOrder.vue 保持一致的列表、筛选、标签及展开明细风格 */
 .inbound-page {
   width: min(1320px, 100%);

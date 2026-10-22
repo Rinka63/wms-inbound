@@ -3,6 +3,8 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useUserStore } from '../stores/user.js'
 import { PUTAWAY_STATUS } from '../stores/inboundStore.js'
 import { decimal, formatQty, units } from '../utils/quantity.js'
+import { matchesTimeRange } from '../utils/dateRange.js'
+import { request } from '../api/http.js'
 
 const userStore = useUserStore()
 
@@ -38,41 +40,6 @@ const INBOUND_RECEIVED = 3       // 允许新建
 const INBOUND_PART_PUTAWAY = 4   // 允许继续上架
 
 
-// ========== 工具函数 ==========
-
-/**
- * 统一请求：带 token；成功时空 body 返回 null；失败时抛出后端的 message
- */
-async function request(url, { method = 'GET', body } = {}) {
-  const headers = {
-    Accept: 'application/json',
-    Authorization: `Bearer ${userStore.token}`,
-  }
-  if (body !== undefined) headers['Content-Type'] = 'application/json'
-
-  const response = await fetch(url, {
-    method,
-    headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
-  })
-
-  const text = await response.text()
-  let result = null
-  if (text) {
-    try {
-      result = JSON.parse(text)
-    } catch {
-      result = null
-    }
-  }
-
-  if (!response.ok) {
-    throw new Error(result?.message || `请求失败 (${response.status})`)
-  }
-  return result
-}
-
-
 // ========== 计算属性 ==========
 
 const filteredOrders = computed(() => {
@@ -81,7 +48,7 @@ const filteredOrders = computed(() => {
       (!kw || String(row.inboundOrderNo || '').toLowerCase().includes(kw)) &&
       (!warehouse.value || row.warehouseId === Number(warehouse.value)) &&
       (statusFilter.value === '' || String(row.status) === statusFilter.value) &&
-      matchesCreatedRange(row.createdTime)
+      matchesTimeRange(row.createdTime, createdRange.value)
   )
 })
 
@@ -123,15 +90,6 @@ async function loadOrders() {
   } finally {
     ordersLoading.value = false
   }
-}
-
-function matchesCreatedRange(timestamp) {
-  if (!timestamp || createdRange.value === 'all') return true
-  const date = new Date(timestamp)
-  const now = Date.now()
-  const day = 86400000
-  const ranges = { today: day, week: 7 * day, month: 30 * day }
-  return ranges[createdRange.value] && now - date.getTime() < ranges[createdRange.value]
 }
 
 function resetFilters() {
@@ -401,8 +359,8 @@ onUnmounted(() => {
           <select id="putaway-range" v-model="createdRange">
             <option value="all">全部时间</option>
             <option value="today">今天</option>
-            <option value="week">近 7 天</option>
-            <option value="month">近 30 天</option>
+            <option value="7d">近 7 天</option>
+            <option value="30d">近 30 天</option>
           </select>
         </div>
 
@@ -540,12 +498,12 @@ onUnmounted(() => {
                     </tr>
                     </thead>
                     <tbody>
-                    <tr v-for="item in row.items" :key="item.id">
+                    <tr v-for="item in row.lines" :key="item.id">
                       <td>{{ item.skuId }}</td>
                       <td>{{ item.locationCode }}</td>
                       <td class="inbound-qty">{{ formatQty(item.putawayQty) }}</td>
                     </tr>
-                    <tr v-if="!row.items.length">
+                    <tr v-if="!row.lines?.length">
                       <td colspan="3" class="inbound-empty">尚未保存明细。</td>
                     </tr>
                     </tbody>
@@ -744,6 +702,12 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/*
+ * 注意：部分基础样式（.inbound-page, .inbound-table 等）已在 common.css 中定义
+ * 此处保留的样式主要为页面特有样式和差异化调整
+ * TODO: 后续可逐步清理与 common.css 完全重复的样式
+ */
+
 .inbound-page {
   width: min(1320px, 100%);
   margin: 0 auto;

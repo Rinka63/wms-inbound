@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
+import { request } from '../api/http.js'
 import {
   Boxes,
   Building2,
@@ -95,9 +96,7 @@ async function ensureWarehouseInfo() {
   if (userStore.warehouseName || !userStore.userId) return
 
   try {
-    const response = await fetch(`/dashboard/overview?userId=${userStore.userId}`)
-    if (!response.ok) return
-    const result = await response.json()
+    const result = await request(`/dashboard/overview?userId=${userStore.userId}`)
     userStore.setWarehouse(result)
   } catch (error) {
     console.warn('获取仓库信息失败', error)
@@ -221,6 +220,7 @@ onMounted(ensureWarehouseInfo)
 </template>
 
 <style scoped>
+/* 主要样式在 style.css 和 common.css 中定义 */
 /*
  * 右侧内容宽度统一由 Layout 管理。
  * 不改 sidebar 的 272px / 84px 栅格，只让 main-area 充分占用剩余空间。

@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.aspectj.lang.reflect.MethodSignature;
 
@@ -15,6 +16,7 @@ import java.util.Arrays;
 @Slf4j
 @Aspect
 @Component
+@Order(1)  // 设置最高优先级，确保在 Spring Cache 切面之前执行
 public class CachePerformanceAspect {
 
     /**
@@ -62,11 +64,11 @@ public class CachePerformanceAspect {
             String cacheStatus = methodExecuted ? "🔴 MISS (查询数据库)" : "🟢 HIT (命中缓存)";
 
             if (error == null) {
-                log.info("[缓存性能] {} | {} | 耗时: {:.3f} ms | 参数: {}",
-                        businessName, cacheStatus, elapsedMs, params);
+                log.info("[缓存性能] {} | {} | 耗时: {} ms | 参数: {}",
+                        businessName, cacheStatus, String.format("%.3f", elapsedMs), params);
             } else {
-                log.error("[缓存性能] {} | ❌ ERROR | 耗时: {:.3f} ms | 参数: {} | 错误: {}",
-                        businessName, elapsedMs, params, error.getMessage());
+                log.error("[缓存性能] {} | ❌ ERROR | 耗时: {} ms | 参数: {} | 错误: {}",
+                        businessName, String.format("%.3f", elapsedMs), params, error.getMessage());
             }
 
             // 清理 ThreadLocal

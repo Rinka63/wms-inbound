@@ -27,14 +27,20 @@ export function formatQuantity(value) {
 }
 
 /**
- * 格式化显示（简化版，用于页面展示）
+ * 格式化显示数量（零显示为 —，带千分位）
  */
 export function formatQty(value) {
-    const text = String(value ?? '').trim()
-    if (!text || text === '0' || text === '0.000') return '—'
-    try {
-        return decimal(units(text))
-    } catch {
-        return text
-    }
+  const text = String(value ?? '').trim()
+  if (!text || text === '0' || text === '0.000') return '—'
+
+  try {
+    const bigIntValue = units(text)
+    const decimalStr = decimal(bigIntValue)
+    return Number(decimalStr).toLocaleString('zh-CN', {
+      minimumFractionDigits: 3,
+      maximumFractionDigits: 3,
+    })
+  } catch {
+    return text
+  }
 }

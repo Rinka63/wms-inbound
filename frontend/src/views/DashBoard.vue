@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useUserStore } from '../stores/user'
+import { request } from '../api/http.js'
 import {
   Boxes,
   ChevronRight,
@@ -38,10 +39,7 @@ async function loadDashboard() {
   dashboardError.value = ''
 
   try {
-    const response = await fetch(`/dashboard/overview?userId=${userStore.userId}`)
-    if (!response.ok) throw new Error('获取 Dashboard 数据失败')
-
-    const result = await response.json()
+    const result = await request(`/dashboard/overview?userId=${userStore.userId}`)
     dashboard.value = result
     userStore.setWarehouse(result)
   } catch (error) {
@@ -158,6 +156,7 @@ onMounted(loadDashboard)
 </template>
 
 <style scoped>
+/* 公共样式请参考 common.css */
 .dashboard-error {
   margin: 0 0 16px;
   padding: 12px 14px;

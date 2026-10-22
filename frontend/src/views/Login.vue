@@ -151,6 +151,7 @@
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
+import { request } from '../api/http.js'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -224,31 +225,14 @@ async function handleSubmit() {
   submitting.value = true
 
   try {
-    const response = await fetch('/users/login', {
+    const result = await request('/users/login', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+      body: {
         username: form.account,
         password: form.password,
-      }),
+      },
     })
 
-    const contentType = response.headers.get('content-type') || ''
-    const result = contentType.includes('application/json')
-        ? await response.json()
-        : null
-
-    if (!response.ok) {
-      throw new Error(result?.message || '用户名或密码错误')
-    }
-
-    // localStorage.setItem('wmsUser', JSON.stringify(result))
-
-    // 后续有 Vue Router 时改成：
-    // router.push('/dashboard')
-    // window.location.href = '#/dashboard'
     userStore.setUser(result)
     router.push('/dashboard')
 
@@ -261,6 +245,7 @@ async function handleSubmit() {
 </script>
 
 <style scoped>
+/* 公共样式请参考 common.css */
 :global(*) {
   box-sizing: border-box;
 }
