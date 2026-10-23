@@ -242,4 +242,57 @@
 
     </update>
 
+    <insert id="insertInboundOrder">
+
+        INSERT INTO inbound_order (
+            warehouse_id,
+            inbound_order_no,
+            inbound_type,
+            inbound_status,
+            created_by,
+            remark,
+            gmt_create,
+            gmt_modified
+        ) VALUES (
+            #{warehouseId},
+            #{inboundOrderNo},
+            #{inboundType},
+            #{inboundStatus},
+            #{createdBy},
+            #{remark},
+            NOW(),
+            NOW()
+        )
+
+    </insert>
+
+    <select id="selectLastInsertId" resultType="java.lang.Long">
+        SELECT LAST_INSERT_ID()
+    </select>
+
+    <insert id="insertInboundOrderItems">
+
+        INSERT INTO inbound_order_item (
+            inbound_order_id,
+            sku_id,
+            plan_qty,
+            received_qty,
+            putaway_qty,
+            gmt_create,
+            gmt_modified
+        ) VALUES
+        <foreach collection="items" item="item" separator=",">
+            (
+                #{inboundOrderId},
+                #{item.skuId},
+                #{item.planQty},
+                0,
+                0,
+                NOW(),
+                NOW()
+            )
+        </foreach>
+
+    </insert>
+
 </mapper>

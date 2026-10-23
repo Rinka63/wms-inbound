@@ -2,6 +2,7 @@ package com.example.wms.mapper;
 
 import com.example.wms.dto.InboundOrderDetailResponse;
 import com.example.wms.dto.InboundOrderResponse;
+import com.example.wms.dto.InboundOrderRequest;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -58,5 +59,30 @@ public interface InboundOrderMapper {
     int updateInboundStatus(
             @Param("id") Long id,
             @Param("status") Integer status
+    );
+
+    /**
+     * 插入入库单头
+     */
+    int insertInboundOrder(
+            @Param("warehouseId") Long warehouseId,
+            @Param("inboundOrderNo") String inboundOrderNo,
+            @Param("inboundType") Integer inboundType,
+            @Param("inboundStatus") Integer inboundStatus,
+            @Param("createdBy") Long createdBy,
+            @Param("remark") String remark
+    );
+
+    /**
+     * 获取最后插入的ID
+     */
+    Long selectLastInsertId();
+
+    /**
+     * 批量插入入库单明细
+     */
+    int insertInboundOrderItems(
+            @Param("inboundOrderId") Long inboundOrderId,
+            @Param("items") List<InboundOrderRequest.InboundOrderItemRequest> items
     );
 }

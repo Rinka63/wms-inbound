@@ -1,6 +1,7 @@
 package com.example.wms.service;
 
 import com.example.wms.dto.InboundOrderDetailResponse;
+import com.example.wms.dto.InboundOrderRequest;
 import com.example.wms.dto.InboundOrderResponse;
 import com.example.wms.mapper.InboundOrderMapper;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +29,102 @@ public class InboundOrderService {
     public List<InboundOrderResponse> getInboundOrderList() {
         return inboundOrderMapper.selectInboundOrderList();
     }
+
+    @Transactional
+    public InboundOrderResponse createInboundOrder(InboundOrderRequest request) {
+
+        if (request.getWarehouseId() == null || request.getWarehouseId() <= 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "仓库ID不正确"
+            );
+        }
+
+        if (request.getCreatedBy() == null || request.getCreatedBy() <= 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "创建人ID不正确"
+            );
+        }
+
+        if (request.getItems() == null || request.getItems().isEmpty()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "入库单明细不能为空"
+            );
+        }
+
+        // 验证明细项
+        for (InboundOrderRequest.InboundOrderItemRequest item : request.getItems()) {
+            if (item.getSkuId() == null || item.getSkuId() <= 0) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "SKU ID不正确"
+                );
+            }
+            if (item.getPlanQty() == null || item.getPlanQty() <= 0) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "计划数量必须大于0"
+                );
+            }
+        }
+
+        // 生成入库单号
+        String inboundOrderNo = generateInboundOrderNo();
+
+        // 插入入库单头
+        int rows = inboundOrderMapper.insertInboundOrder(
+                request.getWarehouseId(),
+                inboundOrderNo,
+                1, // inboundType: 采购入库
+                request.getStatus() != null ? request.getStatus() : 1,
+                request.getCreatedBy(),
+                request.getRemark()
+        );
+
+        if (rows == 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "创建入库单失败"
+            );
+        }
+
+        // 获取插入的ID
+        Long inboundOrderId = inboundOrderMapper.selectLastInsertId();
+
+        // 插入入库单明细
+        int itemRows = inboundOrderMapper.insertInboundOrderItems(
+                inboundOrderId,
+                request.getItems()
+        );
+
+        if (itemRows != request.getItems().size()) {
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "创建入库单明细失败"
+            );
+        }
+
+        // 返回创建的入库单信息
+        InboundOrderResponse response = new InboundOrderResponse();
+        response.setId(inboundOrderId);
+        response.setInboundOrderNo(inboundOrderNo);
+        response.setWarehouseId(warehouseId);
+        response.setStatus(request.getStatus() != null ? request.getStatus() : 1);
+        response.setCreatedTime(LocalDateTime.now());
+
+        return response;
+    }
+
+    private String generateInboundOrderNo() {
+        // 格式: IB + yyyyMMddHHmmss + 随机3位数
+        String timestamp = LocalDateTime.now()
+                .format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+        int random = (int) (Math.random() * 900) + 100;
+        return "IB" + timestamp + random;
+    }
+
     @Transactional(readOnly = true)
     public InboundOrderDetailResponse getInboundOrderDetail(Long id) {
 
