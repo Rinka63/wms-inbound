@@ -24,6 +24,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+/**
+ * 用户管理接口层单元测试
+ */
 @WebMvcTest(WmsUserController.class)
 class WmsUserControllerTest {
 
@@ -44,7 +47,7 @@ class WmsUserControllerTest {
     private StringRedisTemplate stringRedisTemplate;
 
     @Test
-    void createUser_shouldReturnUserId() throws Exception {
+    void createUserShouldReturnUserId() throws Exception {
         when(wmsUserService.createUser(any(CreateWmsUserRequest.class)))
                 .thenReturn(100L);
 
@@ -67,7 +70,7 @@ class WmsUserControllerTest {
     }
 
     @Test
-    void createUser_whenRequestIsInvalid_shouldReturnBadRequest() throws Exception {
+    void createUserWhenRequestIsInvalidShouldReturnBadRequest() throws Exception {
         mockMvc.perform(post("/users")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -85,7 +88,7 @@ class WmsUserControllerTest {
     }
 
     @Test
-    void getUser_shouldReturnUser() throws Exception {
+    void getUserShouldReturnUser() throws Exception {
         WmsUserResponse response = createResponse();
         when(wmsUserService.getUserById(1L)).thenReturn(response);
 
@@ -100,7 +103,7 @@ class WmsUserControllerTest {
     }
 
     @Test
-    void getUserByUsername_shouldReturnUser() throws Exception {
+    void getUserByUsernameShouldReturnUser() throws Exception {
         WmsUserResponse response = createResponse();
         when(wmsUserService.getUserByUsername("zhangsan")).thenReturn(response);
 
@@ -113,7 +116,7 @@ class WmsUserControllerTest {
     }
 
     @Test
-    void updateUser_shouldReturnNoContent() throws Exception {
+    void updateUserShouldReturnNoContent() throws Exception {
         mockMvc.perform(put("/users/{id}", 1L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -133,7 +136,7 @@ class WmsUserControllerTest {
     }
 
     @Test
-    void enableUser_shouldReturnNoContent() throws Exception {
+    void enableUserShouldReturnNoContent() throws Exception {
         mockMvc.perform(post("/users/{id}/enable", 1L))
                 .andExpect(status().isNoContent());
 
@@ -141,7 +144,7 @@ class WmsUserControllerTest {
     }
 
     @Test
-    void disableUser_shouldReturnNoContent() throws Exception {
+    void disableUserShouldReturnNoContent() throws Exception {
         mockMvc.perform(post("/users/{id}/disable", 1L))
                 .andExpect(status().isNoContent());
 

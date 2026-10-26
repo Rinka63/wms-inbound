@@ -1,5 +1,4 @@
 package com.example.wms.service;
-
 import com.example.wms.common.BusinessException;
 import com.example.wms.dto.InventoryRequest;
 import com.example.wms.entity.LocationStockItem;
@@ -20,6 +19,9 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+/**
+ * 库存服务单元测试
+ */
 @ExtendWith(MockitoExtension.class)
 class InventoryServiceTest {
 
@@ -30,7 +32,7 @@ class InventoryServiceTest {
     private InventoryService inventoryService;
 
     @Test
-    void queryPage_shouldReturnPageResult_whenValidRequest() {
+    void queryPageShouldReturnPageResultWhenValidRequest() {
         // 准备测试数据
         InventoryRequest request = new InventoryRequest();
         request.setWarehouseId(1L);
@@ -81,11 +83,12 @@ class InventoryServiceTest {
     }
 
     @Test
-    void queryPage_shouldThrowException_whenInvalidPageSize() {
+    void queryPageShouldThrowExceptionWhenInvalidPageSize() {
         // 准备非法参数
         InventoryRequest request = new InventoryRequest();
         request.setPage(1);
-        request.setSize(100); // 不在 10/20/50 范围内
+        // 不在 10/20/50 范围内
+        request.setSize(100);
 
         // 执行并验证异常
         BusinessException exception = assertThrows(

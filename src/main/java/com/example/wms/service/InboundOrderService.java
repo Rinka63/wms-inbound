@@ -110,7 +110,7 @@ public class InboundOrderService {
         InboundOrderResponse response = new InboundOrderResponse();
         response.setId(inboundOrderId);
         response.setInboundOrderNo(inboundOrderNo);
-        response.setWarehouseId(warehouseId);
+        response.setWarehouseId(request.getWarehouseId());
         response.setStatus(request.getStatus() != null ? request.getStatus() : 1);
         response.setCreatedTime(LocalDateTime.now());
 
